@@ -1,11 +1,13 @@
+# handlers/registration.py
+
 from aiogram import types, Dispatcher
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardRemove, ContentType
+
 from db import get_connection
 from datetime import datetime
-
 from .common import get_main_menu
 
 
@@ -16,6 +18,7 @@ class Registration(StatesGroup):
 
 
 async def cmd_start(message: types.Message, state: FSMContext):
+    # Проверяем, зарегистрирован ли уже пользователь
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (message.from_user.id,))
@@ -23,24 +26,31 @@ async def cmd_start(message: types.Message, state: FSMContext):
     conn.close()
 
     if user:
+        # Привествуем возвращённого пользователя
+        name = user["name"]
         await message.answer(
-            f"Добро пожаловать обратно, {user['name']}!",
+            f"Добро пожаловать обратно, {name}!",
             reply_markup=get_main_menu()
         )
         await state.clear()
     else:
+        # Начинаем регистрацию
         await message.answer("Привет! Давай зарегистрируемся. Как тебя зовут?")
         await state.set_state(Registration.name)
 
 
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
-    await message.answer("В каком городе ты находишься?")
+    # Удаляем сообщение с именем и текущую клавиатуру
+    await message.delete()
+    await message.answer("В каком городе ты находишься?", reply_markup=ReplyKeyboardRemove())
     await state.set_state(Registration.city)
 
 
 async def process_city(message: types.Message, state: FSMContext):
     await state.update_data(city=message.text.strip())
+    await message.delete()
+
     markup = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text="Отправить номер телефона", request_contact=True)]],
         resize_keyboard=True,
@@ -57,12 +67,14 @@ async def process_phone(message: types.Message, state: FSMContext):
     else:
         phone = message.text.strip()
 
+    # Сохраняем данные
     data = await state.get_data()
     name = data.get("name")
     city = data.get("city")
     telegram_id = message.from_user.id
     created_at = datetime.now().isoformat()
 
+    # Вставляем или игнорируем, если уже есть
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -72,6 +84,9 @@ async def process_phone(message: types.Message, state: FSMContext):
     conn.commit()
     conn.close()
 
+    # Удаляем сообщение с телефоном (контакт или текст)
+    await message.delete()
+
     await message.answer(
         f"Регистрация завершена! Приятно познакомиться, {name}.",
         reply_markup=get_main_menu()
@@ -80,7 +95,6 @@ async def process_phone(message: types.Message, state: FSMContext):
 
 
 def register_user_handlers(dp: Dispatcher):
-    # /start без фильтра по состоянию
     dp.message.register(cmd_start, Command(commands=["start"]))
 
     # Ввод имени

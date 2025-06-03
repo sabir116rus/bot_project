@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -14,6 +15,7 @@ from handlers import (
 )
 
 API_TOKEN = "7718441846:AAHo3_ESX8LvcTbVgZnGOpTdDc5Xzcfewt8"
+
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -34,6 +36,7 @@ async def main():
 
     # Запускаем поллинг
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
