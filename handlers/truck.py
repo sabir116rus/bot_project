@@ -239,64 +239,119 @@ async def process_truck_comment(message: types.Message, state: FSMContext):
     await message.answer("✅ ТС успешно добавлено!", reply_markup=get_main_menu())
     await state.clear()
 
-
-# ========== СЦЕНАРИЙ: ПОИСК ТС ==========
+# ========== СЦЕНАРИЙ: ПОИСК ТС С КНОПКАМИ ==========
 
 async def cmd_start_find_trucks(message: types.Message, state: FSMContext):
+    """
+    Запускает поиск ТС. Вместо свободного текста выдаёт клавиатуру
+    со всеми возможными городами стоянки (из таблицы trucks) + кнопку "Все".
+    """
     user_id = await get_current_user_id(message)
     if not user_id:
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    await message.answer("🔍 Поиск ТС.\nВведите город (или 'все'):", reply_markup=types.ReplyKeyboardRemove())
-    await state.set_state(TruckSearchStates.city)
+    # Удаляем сообщение-инициатор (нажатие "🔍 Найти ТС")
+    await message.delete()
 
+    # Получаем уникальные города стоянки из таблицы trucks
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT city FROM trucks WHERE city IS NOT NULL")
+    rows = cursor.fetchall()
+    conn.close()
 
-async def filter_city(message: types.Message, state: FSMContext):
-    await state.update_data(filter_city=message.text.strip())
-    await ask_and_store(
-        message,
-        state,
-        "Введите минимальную дату начала (ДД.MM.ГГГГ) или 'нет':",
-        TruckSearchStates.date_from
+    cities = [r["city"] for r in rows if r["city"].strip()]
+    cities.sort(key=lambda x: x.lower())
+
+    kb_buttons = [[types.KeyboardButton(text=city)] for city in cities]
+    kb_buttons.append([types.KeyboardButton(text="Все")])
+
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=kb_buttons,
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
 
+    bot_msg = await message.answer(
+        "🔍 Поиск ТС.\nВыберите город (или нажмите «Все»):",
+        reply_markup=kb
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(TruckSearchStates.city)
+
+async def filter_city(message: types.Message, state: FSMContext):
+    """
+    Обработчик выбора города (или 'Все') для поиска ТС.
+    Затем спрашивает минимальную дату начала.
+    """
+    selected = message.text.strip()
+    await state.update_data(filter_city=selected.lower())
+
+    # Удаляем сообщение пользователя и предыдущее сообщение бота
+    await message.delete()
+    data = await state.get_data()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
+
+    # Спрашиваем минимальную дату начала (ДД.MM.ГГГГ) или 'нет'
+    bot_msg = await message.answer(
+        "Введите минимальную дату начала (ДД.MM.ГГГГ) или «нет»:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(TruckSearchStates.date_from)
 
 async def filter_date_from_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         parsed = parse_date(message.text.strip())
         if not parsed:
-            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или «нет».")
             return
         await state.update_data(filter_date_from=parsed)
     else:
         await state.update_data(filter_date_from="нет")
 
-    await ask_and_store(
-        message,
-        state,
-        "Введите максимальную дату начала (ДД.MM.ГГГГ) или 'нет':",
-        TruckSearchStates.date_to
-    )
+    # Удаляем сообщение пользователя и предыдущий бот-вопрос
+    await message.delete()
+    data = await state.get_data()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
 
+    # Спрашиваем максимальную дату начала
+    bot_msg = await message.answer(
+        "Введите максимальную дату начала (ДД.MM.ГГГГ) или «нет»:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(TruckSearchStates.date_to)
 
 async def filter_date_to_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         parsed = parse_date(message.text.strip())
         if not parsed:
-            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или «нет».")
             return
         await state.update_data(filter_date_to=parsed)
     else:
         await state.update_data(filter_date_to="нет")
 
     data = await state.get_data()
-    fc      = data.get("filter_city", "").lower()
+    fc = data.get("filter_city", "")
     fd_from = data.get("filter_date_from", "")
-    fd_to   = data.get("filter_date_to", "")
+    fd_to = data.get("filter_date_to", "")
 
+    # Составляем SQL-запрос с учётом фильтров
     query = """
     SELECT t.id, u.name, t.city, t.region, t.date_from, t.weight, t.body_type, t.direction
     FROM trucks t
@@ -320,13 +375,12 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     rows = cursor.fetchall()
     conn.close()
 
-    # Удаляем входное сообщение пользователя и последний бот-вопрос
+    # Удаляем последнее сообщение пользователя и предыдущий бот-вопрос
     await message.delete()
-    bot_data = await state.get_data()
-    last_bot_msg_id = bot_data.get("last_bot_message_id")
-    if last_bot_msg_id:
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
         try:
-            await message.chat.delete_message(last_bot_msg_id)
+            await message.chat.delete_message(prev_bot_id)
         except Exception:
             pass
 
@@ -348,9 +402,9 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-
 def register_truck_handlers(dp: Dispatcher):
-    dp.message.register(cmd_start_add_truck,   lambda m: m.text == "➕ Добавить ТС")
+    # Добавление ТС (без изменений)
+    dp.message.register(cmd_start_add_truck, lambda m: m.text == "➕ Добавить ТС")
     dp.message.register(process_city,          StateFilter(TruckAddStates.city))
     dp.message.register(process_region,        StateFilter(TruckAddStates.region))
     dp.message.register(process_date_from,     StateFilter(TruckAddStates.date_from))

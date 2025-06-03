@@ -256,75 +256,167 @@ async def process_comment(message: types.Message, state: FSMContext):
     await message.answer("✅ Груз успешно добавлен!", reply_markup=get_main_menu())
     await state.clear()
 
-
-# ========== СЦЕНАРИЙ: ПОИСК ГРУЗА ==========
+# ========== СЦЕНАРИЙ: ПОИСК ГРУЗА С КНОПКАМИ ==========
 
 async def cmd_start_find_cargo(message: types.Message, state: FSMContext):
+    """
+    Запускает поиск груза. Вместо свободного текста сразу выдаёт клавиатуру
+    со всеми возможными городами-отправлениями + кнопку "Все".
+    """
     user_id = await get_current_user_id(message)
     if not user_id:
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    await message.answer("🔍 Поиск груза.\nВведите город отправления (или 'все'):", reply_markup=types.ReplyKeyboardRemove())
+    # Удаляем сообщение-инициатор (нажатие "🔍 Найти груз")
+    await message.delete()
+
+    # Получаем список уникальных городов отправления из таблицы cargo
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT city_from FROM cargo WHERE city_from IS NOT NULL")
+    rows = cursor.fetchall()
+    conn.close()
+
+    cities = [r["city_from"] for r in rows if r["city_from"].strip()]
+    cities.sort(key=lambda x: x.lower())  # отсортируем по алфавиту
+
+    # Строим клавиатуру: каждая строка — один город, и внизу кнопка "Все"
+    kb_buttons = [[types.KeyboardButton(text=city)] for city in cities]
+    kb_buttons.append([types.KeyboardButton(text="Все")])
+
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=kb_buttons,
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+    bot_msg = await message.answer(
+        "🔍 Поиск груза.\nВыберите город отправления (или нажмите «Все»):",
+        reply_markup=kb
+    )
+    # Сохраняем ID последнего бот-сообщения, чтобы потом можно было его удалить
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+
     await state.set_state(CargoSearchStates.city_from)
 
-
 async def filter_city_from(message: types.Message, state: FSMContext):
-    await state.update_data(filter_city_from=message.text.strip())
-    await ask_and_store(
-        message,
-        state,
-        "Введите город назначения (или 'все'):",
-        CargoSearchStates.city_to
+    """
+    Получаем город отправления (либо "Все"), далее предлагаем выбрать город назначения.
+    """
+    selected = message.text.strip()
+    # Сохраняем выбранный фильтр
+    await state.update_data(filter_city_from=selected.lower())
+
+    # Удалим сообщение пользователя (кнопка) и предыдущий вопрос бота
+    await message.delete()
+    data = await state.get_data()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
+
+    # Теперь предлагаем выбрать город назначения аналогично
+    # Получаем уникальные города назначения из cargo
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT city_to FROM cargo WHERE city_to IS NOT NULL")
+    rows = cursor.fetchall()
+    conn.close()
+
+    to_cities = [r["city_to"] for r in rows if r["city_to"].strip()]
+    to_cities.sort(key=lambda x: x.lower())
+
+    kb_buttons = [[types.KeyboardButton(text=city)] for city in to_cities]
+    kb_buttons.append([types.KeyboardButton(text="Все")])
+
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=kb_buttons,
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
 
+    bot_msg = await message.answer(
+        "Введите город назначения (или нажмите «Все»):",
+        reply_markup=kb
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(CargoSearchStates.city_to)
 
 async def filter_city_to(message: types.Message, state: FSMContext):
-    await state.update_data(filter_city_to=message.text.strip())
-    await ask_and_store(
-        message,
-        state,
-        "Введите минимальную дату отправления (ДД.MM.ГГГГ) или 'нет':",
-        CargoSearchStates.date_from
-    )
+    """
+    Получаем город назначения (либо "Все"), далее спрашиваем дату отправления (min/max).
+    """
+    selected = message.text.strip()
+    await state.update_data(filter_city_to=selected.lower())
 
+    # Удаляем сообщение пользователя и предыдущее бот-сообщение
+    await message.delete()
+    data = await state.get_data()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
+
+    # Спрашиваем минимальную дату отправления
+    bot_msg = await message.answer(
+        "Введите минимальную дату отправления (ДД.MM.ГГГГ) или «нет»:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(CargoSearchStates.date_from)
 
 async def filter_date_from(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         parsed = parse_date(message.text.strip())
         if not parsed:
-            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».")
             return
         await state.update_data(filter_date_from=parsed)
     else:
         await state.update_data(filter_date_from="нет")
 
-    await ask_and_store(
-        message,
-        state,
-        "Введите максимальную дату отправления (ДД.MM.ГГГГ) или 'нет':",
-        CargoSearchStates.date_to
-    )
+    # Удаляем сообщение пользователя и предыдущий бот-вопрос
+    await message.delete()
+    data = await state.get_data()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
 
+    # Спрашиваем максимальную дату отправления
+    bot_msg = await message.answer(
+        "Введите максимальную дату отправления (ДД.MM.ГГГГ) или «нет»:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(CargoSearchStates.date_to)
 
 async def filter_date_to(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         parsed = parse_date(message.text.strip())
         if not parsed:
-            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».")
             return
         await state.update_data(filter_date_to=parsed)
     else:
         await state.update_data(filter_date_to="нет")
 
     data = await state.get_data()
-    fc_from = data.get("filter_city_from", "").lower()
-    fc_to   = data.get("filter_city_to", "").lower()
+    fc_from = data.get("filter_city_from", "")
+    fc_to = data.get("filter_city_to", "")
     fd_from = data.get("filter_date_from", "")
-    fd_to   = data.get("filter_date_to", "")
+    fd_to = data.get("filter_date_to", "")
 
+    # Собираем SQL-запрос с учётом выбранных фильтров
     query = """
     SELECT c.id, u.name, c.city_from, c.region_from, c.city_to, c.region_to, c.date_from, c.weight, c.body_type
     FROM cargo c
@@ -351,13 +443,12 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     rows = cursor.fetchall()
     conn.close()
 
-    # Удаляем сообщение пользователя (с датой) и последний бот-вопрос
+    # Удаляем последнее сообщение пользователя и предыдущий бот-вопрос
     await message.delete()
-    bot_data = await state.get_data()
-    last_bot_msg_id = bot_data.get("last_bot_message_id")
-    if last_bot_msg_id:
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
         try:
-            await message.chat.delete_message(last_bot_msg_id)
+            await message.chat.delete_message(prev_bot_id)
         except Exception:
             pass
 
@@ -366,21 +457,20 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     else:
         text = "📋 Найденные грузы:\n\n"
         for r in rows:
-            date_display = format_date_for_display(r["date_from"])
+            date_disp = format_date_for_display(r["date_from"])
             text += (
                 f"ID: {r['id']}\n"
                 f"Владелец: {r['name']}\n"
                 f"{r['city_from']}, {r['region_from']} → {r['city_to']}, {r['region_to']}\n"
-                f"Дата отправления: {date_display}\n"
+                f"Дата отправления: {date_disp}\n"
                 f"Вес: {r['weight']} т, Кузов: {r['body_type']}\n\n"
             )
         await message.answer(text, reply_markup=get_main_menu())
 
     await state.clear()
 
-
 def register_cargo_handlers(dp: Dispatcher):
-    # вместо Text(equals="➕ Добавить груз") используем лямбду, как в изначальном коде
+    # Добавление груза (осталось без изменений)
     dp.message.register(cmd_start_add_cargo, lambda m: m.text == "➕ Добавить груз")
     dp.message.register(process_city_from,   StateFilter(CargoAddStates.city_from))
     dp.message.register(process_region_from, StateFilter(CargoAddStates.region_from))
