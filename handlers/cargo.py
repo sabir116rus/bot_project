@@ -1,14 +1,16 @@
 # handlers/cargo.py
 
 from aiogram import types, Dispatcher
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import KeyboardButton
 from db import get_connection
 from datetime import datetime
 
-# 1) Состояния для добавления (дополнено отдельным классом)
+# Импорт главного меню
+from .common import get_main_menu
+
+
 class CargoAddStates(StatesGroup):
     city_from    = State()
     region_from  = State()
@@ -21,7 +23,7 @@ class CargoAddStates(StatesGroup):
     is_local     = State()
     comment      = State()
 
-# 2) Состояния для поиска
+
 class CargoSearchStates(StatesGroup):
     city_from    = State()
     city_to      = State()
@@ -29,8 +31,9 @@ class CargoSearchStates(StatesGroup):
     date_to      = State()
 
 
-# Сценарий: /add_cargo
-async def cmd_add_cargo(message: types.Message, state: FSMContext):
+# ========== СЦЕНАРИЙ: ДОБАВЛЕНИЕ ГРУЗА ==========
+
+async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (message.from_user.id,))
@@ -41,47 +44,54 @@ async def cmd_add_cargo(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    await message.answer("📦 Начнём добавление груза.\nОткуда (город):")
+    # Убираем клавиатуру, чтобы ввести данные
+    await message.answer("📦 Начнём добавление груза.\nОткуда (город):", reply_markup=types.ReplyKeyboardRemove())
     await state.set_state(CargoAddStates.city_from)
 
-# 3) Состояния «добавления»
+
 async def process_city_from(message: types.Message, state: FSMContext):
-    await state.update_data(city_from=message.text)
+    await state.update_data(city_from=message.text.strip())
     await message.answer("Регион отправления:")
     await state.set_state(CargoAddStates.region_from)
 
+
 async def process_region_from(message: types.Message, state: FSMContext):
-    await state.update_data(region_from=message.text)
+    await state.update_data(region_from=message.text.strip())
     await message.answer("Куда (город):")
     await state.set_state(CargoAddStates.city_to)
 
+
 async def process_city_to(message: types.Message, state: FSMContext):
-    await state.update_data(city_to=message.text)
+    await state.update_data(city_to=message.text.strip())
     await message.answer("Регион назначения:")
     await state.set_state(CargoAddStates.region_to)
 
+
 async def process_region_to(message: types.Message, state: FSMContext):
-    await state.update_data(region_to=message.text)
-    await message.answer("Дата отправления (ДД.ММ.ГГГГ):")
+    await state.update_data(region_to=message.text.strip())
+    await message.answer("Дата отправления (ДД.MM.ГГГГ):")
     await state.set_state(CargoAddStates.date_from)
 
+
 async def process_date_from(message: types.Message, state: FSMContext):
-    # Валидируем дату
+    text = message.text.strip()
     try:
-        parsed = datetime.strptime(message.text, "%d.%m.%Y")
+        parsed = datetime.strptime(text, "%d.%m.%Y")
     except ValueError:
-        await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ:")
+        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
         return
+
     await state.update_data(date_from=parsed.strftime("%Y-%m-%d"))
-    await message.answer("Дата прибытия (ДД.ММ.ГГГГ):")
+    await message.answer("Дата прибытия (ДД.MM.ГГГГ):")
     await state.set_state(CargoAddStates.date_to)
 
+
 async def process_date_to(message: types.Message, state: FSMContext):
-    # Валидируем дату и сравниваем с date_from
+    text = message.text.strip()
     try:
-        parsed_to = datetime.strptime(message.text, "%d.%m.%Y")
+        parsed_to = datetime.strptime(text, "%d.%m.%Y")
     except ValueError:
-        await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ:")
+        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
         return
 
     data = await state.get_data()
@@ -95,20 +105,23 @@ async def process_date_to(message: types.Message, state: FSMContext):
     await message.answer("Вес (в тоннах, цифрой):")
     await state.set_state(CargoAddStates.weight)
 
+
 async def process_weight(message: types.Message, state: FSMContext):
+    text = message.text.strip()
     try:
-        weight = int(message.text)
+        weight = int(text)
     except ValueError:
         await message.answer("Пожалуйста, введи вес цифрой (например, 12):")
         return
 
     await state.update_data(weight=weight)
+
     kb = types.ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Рефрижератор")],
-            [KeyboardButton(text="Тент")],
-            [KeyboardButton(text="Изотерм")],
-            [KeyboardButton(text="Не важно")]
+            [types.KeyboardButton(text="Рефрижератор")],
+            [types.KeyboardButton(text="Тент")],
+            [types.KeyboardButton(text="Изотерм")],
+            [types.KeyboardButton(text="Не важно")]
         ],
         resize_keyboard=True,
         one_time_keyboard=True
@@ -116,13 +129,15 @@ async def process_weight(message: types.Message, state: FSMContext):
     await message.answer("Выбери тип кузова:", reply_markup=kb)
     await state.set_state(CargoAddStates.body_type)
 
+
 async def process_body_type(message: types.Message, state: FSMContext):
     text = message.text.strip()
     if text not in ("Рефрижератор", "Тент", "Изотерм", "Не важно"):
-        await message.answer("Пожалуйста, нажми одну из кнопок: 'Рефрижератор', 'Тент', 'Изотерм' или 'Не важно'.")
+        await message.answer("Пожалуйста, нажми одну из кнопок:\n«Рефрижератор», «Тент», «Изотерм» или «Не важно».")
         return
 
     await state.update_data(body_type=text)
+
     kb = types.ReplyKeyboardMarkup(
         keyboard=[
             [types.KeyboardButton(text="Да (внутригородской)")],
@@ -134,10 +149,11 @@ async def process_body_type(message: types.Message, state: FSMContext):
     await message.answer("Внутригородской груз?", reply_markup=kb)
     await state.set_state(CargoAddStates.is_local)
 
+
 async def process_is_local(message: types.Message, state: FSMContext):
     text = message.text.strip().lower()
     if not ("да" in text or "нет" in text):
-        await message.answer("Пожалуйста, нажми одну из кнопок: 'Да (внутригородской)' или 'Нет (междугородний)'.")
+        await message.answer("Пожалуйста, нажми «Да (внутригородской)» или «Нет (междугородний)».")
         return
 
     is_local = 1 if "да" in text else 0
@@ -145,24 +161,27 @@ async def process_is_local(message: types.Message, state: FSMContext):
     await message.answer("Добавь комментарий (или напиши 'нет'):", reply_markup=types.ReplyKeyboardRemove())
     await state.set_state(CargoAddStates.comment)
 
+
 async def process_comment(message: types.Message, state: FSMContext):
-    comment = message.text if message.text.strip().lower() != "нет" else ""
+    text = message.text.strip()
+    comment = text if text.lower() != "нет" else ""
     data = await state.get_data()
 
-    # Проверяем, что все поля есть в data
-    required_fields = ["city_from", "region_from", "city_to", "region_to", "date_from", "date_to", "weight", "body_type", "is_local"]
-    if not all(f in data for f in required_fields):
-        await message.answer("Что-то пошло не так. Попробуй команду /add_cargo ещё раз.")
+    required_fields = [
+        "city_from", "region_from", "city_to", "region_to",
+        "date_from", "date_to", "weight", "body_type", "is_local"
+    ]
+    if not all(field in data for field in required_fields):
+        await message.answer("Что-то пошло не так. Попробуй «➕ Добавить груз» ещё раз.")
         await state.clear()
         return
 
-    # Извлекаем user_id
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (message.from_user.id,))
     user = cursor.fetchone()
     if not user:
-        await message.answer("Не удалось найти ваш профиль. Сначала зарегистрируйся через /start.")
+        await message.answer("Не удалось найти профиль. Сначала /start.")
         conn.close()
         await state.clear()
         return
@@ -192,12 +211,13 @@ async def process_comment(message: types.Message, state: FSMContext):
     conn.commit()
     conn.close()
 
-    await message.answer("✅ Груз успешно добавлен!", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("✅ Груз успешно добавлен!", reply_markup=get_main_menu())
     await state.clear()
 
 
-# 13) Сценарий поиска: /find_cargo
-async def cmd_find_cargo(message: types.Message, state: FSMContext):
+# ========== СЦЕНАРИЙ: ПОИСК ГРУЗА ==========
+
+async def cmd_start_find_cargo(message: types.Message, state: FSMContext):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (message.from_user.id,))
@@ -208,41 +228,45 @@ async def cmd_find_cargo(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    await message.answer("🔍 Поиск груза.\nВведите город отправления (или 'все'):")
+    await message.answer("🔍 Поиск груза.\nВведите город отправления (или 'все'):", reply_markup=types.ReplyKeyboardRemove())
     await state.set_state(CargoSearchStates.city_from)
+
 
 async def filter_city_from(message: types.Message, state: FSMContext):
     await state.update_data(filter_city_from=message.text.strip())
     await message.answer("Введите город назначения (или 'все'):")
     await state.set_state(CargoSearchStates.city_to)
 
+
 async def filter_city_to(message: types.Message, state: FSMContext):
     await state.update_data(filter_city_to=message.text.strip())
-    await message.answer("Введите минимальную дату отправления (ДД.ММ.ГГГГ) или 'нет':")
+    await message.answer("Введите минимальную дату отправления (ДД.MM.ГГГГ) или 'нет':")
     await state.set_state(CargoSearchStates.date_from)
+
 
 async def filter_date_from(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         try:
-            parsed = datetime.strptime(message.text, "%d.%m.%Y").strftime("%Y-%m-%d")
+            parsed = datetime.strptime(message.text.strip(), "%d.%m.%Y").strftime("%Y-%m-%d")
         except ValueError:
-            await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или 'нет'.")
             return
         await state.update_data(filter_date_from=parsed)
     else:
         await state.update_data(filter_date_from="нет")
 
-    await message.answer("Введите максимальную дату отправления (ДД.ММ.ГГГГ) или 'нет':")
+    await message.answer("Введите максимальную дату отправления (ДД.MM.ГГГГ) или 'нет':")
     await state.set_state(CargoSearchStates.date_to)
+
 
 async def filter_date_to(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
         try:
-            parsed = datetime.strptime(message.text, "%d.%m.%Y").strftime("%Y-%m-%d")
+            parsed = datetime.strptime(message.text.strip(), "%d.%m.%Y").strftime("%Y-%m-%d")
         except ValueError:
-            await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ или 'нет'.")
+            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или 'нет'.")
             return
         await state.update_data(filter_date_to=parsed)
     else:
@@ -254,7 +278,6 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     fd_from = data.get("filter_date_from", "")
     fd_to   = data.get("filter_date_to", "")
 
-    # Собираем SQL
     query = """
     SELECT c.id, u.name, c.city_from, c.region_from, c.city_to, c.region_to, c.date_from, c.weight, c.body_type
     FROM cargo c
@@ -282,7 +305,7 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     conn.close()
 
     if not rows:
-        await message.answer("📬 По вашему запросу ничего не найдено.")
+        await message.answer("📬 По вашему запросу ничего не найдено.", reply_markup=get_main_menu())
     else:
         text = "📋 Найденные грузы:\n\n"
         for r in rows:
@@ -293,15 +316,14 @@ async def filter_date_to(message: types.Message, state: FSMContext):
                 f"Дата: {r['date_from']}\n"
                 f"Вес: {r['weight']} т, Кузов: {r['body_type']}\n\n"
             )
-        await message.answer(text)
+        await message.answer(text, reply_markup=get_main_menu())
 
     await state.clear()
 
 
-# 18) Регистрация хендлеров
 def register_cargo_handlers(dp: Dispatcher):
-    # Добавление груза
-    dp.message.register(cmd_add_cargo, Command(commands=["add_cargo"]))
+    # вместо Text(equals="➕ Добавить груз") используем лямбду
+    dp.message.register(cmd_start_add_cargo, lambda m: m.text == "➕ Добавить груз")
     dp.message.register(process_city_from,   StateFilter(CargoAddStates.city_from))
     dp.message.register(process_region_from, StateFilter(CargoAddStates.region_from))
     dp.message.register(process_city_to,     StateFilter(CargoAddStates.city_to))
@@ -313,9 +335,9 @@ def register_cargo_handlers(dp: Dispatcher):
     dp.message.register(process_is_local,    StateFilter(CargoAddStates.is_local))
     dp.message.register(process_comment,     StateFilter(CargoAddStates.comment))
 
-    # Поиск груза
-    dp.message.register(cmd_find_cargo,      Command(commands=["find_cargo"]))
-    dp.message.register(filter_city_from,    StateFilter(CargoSearchStates.city_from))
-    dp.message.register(filter_city_to,      StateFilter(CargoSearchStates.city_to))
-    dp.message.register(filter_date_from,    StateFilter(CargoSearchStates.date_from))
-    dp.message.register(filter_date_to,      StateFilter(CargoSearchStates.date_to))
+    # вместо Text(equals="🔍 Найти груз") используем лямбду
+    dp.message.register(cmd_start_find_cargo, lambda m: m.text == "🔍 Найти груз")
+    dp.message.register(filter_city_from,     StateFilter(CargoSearchStates.city_from))
+    dp.message.register(filter_city_to,       StateFilter(CargoSearchStates.city_to))
+    dp.message.register(filter_date_from,     StateFilter(CargoSearchStates.date_from))
+    dp.message.register(filter_date_to,       StateFilter(CargoSearchStates.date_to))
