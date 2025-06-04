@@ -1,11 +1,23 @@
 # handlers/common.py
 
+
 from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
+from aiogram import types
+from aiogram.types import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
+
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
+import math
+
+from utils import format_date_for_display
 
 
 def get_main_menu() -> ReplyKeyboardMarkup:
@@ -87,4 +99,52 @@ def register_common_handlers(dp: Dispatcher):
     """Регистрация общих хендлеров."""
     dp.message.register(cmd_cancel, Command(commands=["cancel"]))
     dp.message.register(cmd_help, Command(commands=["help"]))
+
+
+async def show_search_results(message: types.Message, rows, page: int = 0, per_page: int = 5):
+    """Send paginated search results with optional navigation buttons."""
+    total = len(rows)
+    if total == 0:
+        await message.answer("📬 По вашему запросу ничего не найдено.", reply_markup=get_main_menu())
+        return
+
+    start = page * per_page
+    end = start + per_page
+    page_rows = rows[start:end]
+
+    # Determine row type
+    is_cargo = "city_from" in page_rows[0].keys()
+    header = "\ud83d\udccb \u041d\u0430\u0439\u0434\u0435\u043d\u043d\u044b\u0435 \u0433\u0440\u0443\u0437\u044b:\n\n" if is_cargo else "\ud83d\udccb \u041d\u0430\u0439\u0434\u0435\u043d\u043d\u044b\u0435 \u0422\u0421:\n\n"
+    text = header
+
+    for r in page_rows:
+        date_disp = format_date_for_display(r["date_from"])
+        if is_cargo:
+            text += (
+                f"ID: {r['id']}\n"
+                f"\u0412\u043b\u0430\u0434\u0435\u043b\u0435\u0446: {r['name']}\n"
+                f"{r['city_from']}, {r['region_from']} → {r['city_to']}, {r['region_to']}\n"
+                f"\u0414\u0430\u0442\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f: {date_disp}\n"
+                f"\u0412\u0435\u0441: {r['weight']} \u0442, \u041a\u0443\u0437\u043e\u0432: {r['body_type']}\n\n"
+            )
+        else:
+            text += (
+                f"ID: {r['id']}\n"
+                f"\u0412\u043b\u0430\u0434\u0435\u043b\u0435\u0446: {r['name']}\n"
+                f"{r['city']}, {r['region']}\n"
+                f"\u0414\u0430\u0442\u0430 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e: {date_disp}\n"
+                f"\u0413\u0440\u0443\u0437\u043e\u043f\u043e\u0434\u044a\u0451\u043c\u043d\u043e\u0441\u0442\u044c: {r['weight']} \u0442, \u041a\u0443\u0437\u043e\u0432: {r['body_type']}\n"
+                f"\u041d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435: {r['direction']}\n\n"
+            )
+
+    markup: types.InlineKeyboardMarkup | types.ReplyKeyboardMarkup | None = None
+    if total > per_page:
+        buttons = []
+        if page > 0:
+            buttons.append(InlineKeyboardButton(text="\u041d\u0430\u0437\u0430\u0434", callback_data=f"page:{page-1}"))
+        if end < total:
+            buttons.append(InlineKeyboardButton(text="\u0412\u043f\u0435\u0440\u0451\u0434", callback_data=f"page:{page+1}"))
+        markup = InlineKeyboardMarkup(inline_keyboard=[buttons])
+
+    await message.answer(text, reply_markup=markup or get_main_menu())
 

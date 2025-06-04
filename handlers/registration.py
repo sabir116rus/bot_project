@@ -9,6 +9,7 @@ from aiogram.types import ReplyKeyboardRemove, ContentType
 from db import get_connection
 from datetime import datetime
 from .common import get_main_menu
+from utils import get_current_user_id, log_user_action
 
 
 class Registration(StatesGroup):
@@ -91,6 +92,9 @@ async def process_phone(message: types.Message, state: FSMContext):
         f"Регистрация завершена! Приятно познакомиться, {name}.",
         reply_markup=get_main_menu()
     )
+    user_id = await get_current_user_id(message)
+    if user_id:
+        log_user_action(user_id, "registration")
     await state.clear()
 
 
