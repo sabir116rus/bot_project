@@ -5,6 +5,7 @@ from datetime import datetime
 
 from aiogram import types
 from db import get_connection
+from config import Config
 
 
 @contextmanager
@@ -33,7 +34,7 @@ def parse_date(text: str) -> str | None:
     Если не удалось — возвращает None.
     """
     try:
-        dt = datetime.strptime(text.strip(), "%d.%m.%Y")
+        dt = datetime.strptime(text.strip(), Config.DATE_FORMAT)
         return dt.strftime("%Y-%m-%d")
     except ValueError:
         return None
@@ -61,6 +62,6 @@ def format_date_for_display(iso_date: str) -> str:
         # Если приходит формат 'YYYY-MM-DDTHH:MM:SS...', берём первые 10 символов
         date_part = iso_date.split("T")[0]
         dt = datetime.strptime(date_part, "%Y-%m-%d")
-        return dt.strftime("%d.%m.%Y")
+        return dt.strftime(Config.DATE_FORMAT)
     except Exception:
         return iso_date  # если парсинг не удался, возвращаем как есть
