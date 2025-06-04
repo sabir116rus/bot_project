@@ -4,6 +4,7 @@ from aiogram import types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
+from aiogram.exceptions import TelegramBadRequest
 
 
 def get_main_menu() -> ReplyKeyboardMarkup:
@@ -37,7 +38,10 @@ async def ask_and_store(
     Затем переводит FSM в next_state.
     """
     # Удаляем сообщение пользователя
-    await message.delete()
+    try:
+        await message.delete()
+    except TelegramBadRequest:
+        pass
 
     # Удаляем предыдущий бот-вопрос
     data = await state.get_data()
