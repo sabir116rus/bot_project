@@ -1,5 +1,9 @@
 # handlers/common.py
 
+
+from aiogram import types, Dispatcher
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import Command
 from aiogram import types
 from aiogram.types import (
     ReplyKeyboardMarkup,
@@ -7,6 +11,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
@@ -73,6 +78,29 @@ async def ask_and_store(
     await state.set_state(next_state)
 
 
+async def cmd_cancel(message: types.Message, state: FSMContext):
+    """Отмена текущего действия и возврат в главное меню."""
+    await state.clear()
+    await message.answer("Действие отменено.", reply_markup=get_main_menu())
+
+
+async def cmd_help(message: types.Message):
+    """Выводит справочное сообщение со списком команд."""
+    text = (
+        "Доступные команды:\n"
+        "/start - регистрация или главное меню\n"
+        "/help - показать эту справку\n"
+        "/cancel - отменить текущую операцию"
+    )
+    await message.answer(text)
+
+
+def register_common_handlers(dp: Dispatcher):
+    """Регистрация общих хендлеров."""
+    dp.message.register(cmd_cancel, Command(commands=["cancel"]))
+    dp.message.register(cmd_help, Command(commands=["help"]))
+
+
 async def show_search_results(message: types.Message, rows, page: int = 0, per_page: int = 5):
     """Send paginated search results with optional navigation buttons."""
     total = len(rows)
@@ -119,3 +147,4 @@ async def show_search_results(message: types.Message, rows, page: int = 0, per_p
         markup = InlineKeyboardMarkup(inline_keyboard=[buttons])
 
     await message.answer(text, reply_markup=markup or get_main_menu())
+
