@@ -10,6 +10,7 @@ from datetime import datetime
 
 from db import get_connection
 from .common import get_main_menu, ask_and_store, show_search_results
+from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
     get_current_user_id,
@@ -92,8 +93,15 @@ async def process_city(message: types.Message, state: FSMContext):
     await ask_and_store(
         message,
         state,
-        "Дата доступности (с) (ДД.MM.ГГГГ):",
-        TruckAddStates.date_from
+        "Дата доступности (с):",
+        TruckAddStates.date_from,
+        reply_markup=generate_calendar(),
+    )
+    await state.update_data(
+        calendar_field="date_from",
+        calendar_next_state=TruckAddStates.date_to,
+        calendar_next_text="Дата доступности (по):",
+        calendar_next_markup=generate_calendar(),
     )
     await show_progress(message, 3, 9)
 
@@ -109,8 +117,15 @@ async def process_date_from(message: types.Message, state: FSMContext):
     await ask_and_store(
         message,
         state,
-        "Дата доступности (по) (ДД.MM.ГГГГ):",
-        TruckAddStates.date_to
+        "Дата доступности (по):",
+        TruckAddStates.date_to,
+        reply_markup=generate_calendar(),
+    )
+    await state.update_data(
+        calendar_field="date_to",
+        calendar_next_state=TruckAddStates.weight,
+        calendar_next_text="Грузоподъёмность (в тоннах):",
+        calendar_next_markup=None,
     )
     await show_progress(message, 4, 9)
 
@@ -138,7 +153,44 @@ async def process_date_to(message: types.Message, state: FSMContext):
         "Грузоподъёмность (в тоннах):",
         TruckAddStates.weight
     )
+    await state.update_data(calendar_field=None)
     await show_progress(message, 5, 9)
+
+
+async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_from selection from calendar."""
+    date_iso = callback.data.split(":", 1)[1]
+    await state.update_data(date_from=date_iso)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Дата доступности (по):", reply_markup=generate_calendar()
+    )
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="date_to",
+    )
+    await state.set_state(TruckAddStates.date_to)
+    await callback.answer()
+
+
+async def process_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_to selection from calendar."""
+    date_iso = callback.data.split(":", 1)[1]
+    data = await state.get_data()
+    df_iso = data.get("date_from")
+    dt_from = datetime.strptime(df_iso, "%Y-%m-%d") if df_iso else None
+    dt_to = datetime.strptime(date_iso, "%Y-%m-%d")
+    if dt_from and dt_to < dt_from:
+        await callback.answer("Неверная дата", show_alert=True)
+        return
+    await state.update_data(date_to=date_iso, calendar_field=None)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Грузоподъёмность (в тоннах):"
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(TruckAddStates.weight)
+    await callback.answer()
 
 
 async def process_weight(message: types.Message, state: FSMContext):
@@ -434,6 +486,16 @@ def register_truck_handlers(dp: Dispatcher):
     dp.message.register(process_city,          StateFilter(TruckAddStates.city))
     dp.message.register(process_date_from,     StateFilter(TruckAddStates.date_from))
     dp.message.register(process_date_to,       StateFilter(TruckAddStates.date_to))
+    dp.callback_query.register(
+        process_date_from_cb,
+        StateFilter(TruckAddStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        process_date_to_cb,
+        StateFilter(TruckAddStates.date_to),
+        lambda c: c.data.startswith("cal:")
+    )
     dp.message.register(process_weight,        StateFilter(TruckAddStates.weight))
     dp.message.register(process_body_type,     StateFilter(TruckAddStates.body_type))
     dp.message.register(process_direction,     StateFilter(TruckAddStates.direction))

@@ -41,7 +41,7 @@ async def ask_and_store(
     state: FSMContext,
     text: str,
     next_state: State,
-    reply_markup: types.ReplyKeyboardMarkup | None = None
+    reply_markup: types.ReplyKeyboardMarkup | types.InlineKeyboardMarkup | None = None,
 ):
     """
     Удаляет сообщение пользователя и удаляет предыдущий бот-вопрос (если он был сохранён в FSMContext),
