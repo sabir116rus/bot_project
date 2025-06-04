@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+import os
 
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -14,28 +16,32 @@ from handlers import (
     register_profile_handler
 )
 
-API_TOKEN = "7718441846:AAHo3_ESX8LvcTbVgZnGOpTdDc5Xzcfewt8"
-
+load_dotenv()
+API_TOKEN = os.getenv("API_TOKEN")
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    try:
+        logging.basicConfig(level=logging.INFO)
 
-    # Инициализация БД
-    from db import init_db
-    init_db()
+        # Инициализация БД
+        from db import init_db
+        init_db()
 
-    # Создаём бота и диспетчер
-    bot = Bot(token=API_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+        # Создаём бота и диспетчер
+        bot = Bot(token=API_TOKEN)
+        dp = Dispatcher(storage=MemoryStorage())
 
-    # Регистрируем хендлеры
-    register_user_handlers(dp)
-    register_cargo_handlers(dp)
-    register_truck_handlers(dp)
-    register_profile_handler(dp)
+        # Регистрируем хендлеры
+        register_user_handlers(dp)
+        register_cargo_handlers(dp)
+        register_truck_handlers(dp)
+        register_profile_handler(dp)
 
-    # Запускаем поллинг
-    await dp.start_polling(bot)
+        # Запускаем поллинг
+        await dp.start_polling(bot)
+    except Exception as e:
+        logging.error(f"Ошибка запуска бота: {e}")
+        raise
 
 
 if __name__ == "__main__":
