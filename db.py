@@ -1,9 +1,11 @@
 # db.py
 
 import sqlite3
-from datetime import datetime
+import os
 
-DB_PATH = "bot_database.sqlite3"
+# Always use path relative to this file so running the bot from any working
+# directory works correctly.
+DB_PATH = os.path.join(os.path.dirname(__file__), "bot_database.sqlite3")
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -52,7 +54,7 @@ def init_db():
         weight INTEGER,
         body_type TEXT,
         direction TEXT,  -- 'ищу заказ' / 'попутный'
-        route_regions TEXT,  -- JSON-массив регионов
+        route_regions TEXT,  -- список регионов в текстовом виде
         comment TEXT,
         created_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id)
