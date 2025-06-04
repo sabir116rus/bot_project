@@ -4,7 +4,8 @@ from aiogram import types, Dispatcher
 from aiogram.types import KeyboardButton
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State
+from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
@@ -12,7 +13,7 @@ from .common import get_main_menu, ask_and_store
 from utils import parse_date, get_current_user_id, format_date_for_display
 
 
-class TruckAddStates(StatesGroup):
+class TruckAddStates(BaseStates):
     city          = State()
     region        = State()
     date_from     = State()
@@ -24,7 +25,7 @@ class TruckAddStates(StatesGroup):
     comment       = State()
 
 
-class TruckSearchStates(StatesGroup):
+class TruckSearchStates(BaseStates):
     city          = State()
     date_from     = State()
     date_to       = State()
