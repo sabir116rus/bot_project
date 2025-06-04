@@ -20,10 +20,11 @@ from utils import (
     clear_city_cache,
 )
 from config import Config
+from locations import get_regions, get_cities
 
 class TruckAddStates(BaseStates):
-    city          = State()
     region        = State()
+    city          = State()
     date_from     = State()
     date_to       = State()
     weight        = State()
@@ -47,27 +48,46 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     await message.answer(
-        "🚛 Начнём добавление ТС.\nВ каком городе стоит ТС?",
-        reply_markup=types.ReplyKeyboardRemove(),
+        "🚛 Начнём добавление ТС.\nВыберите регион стоянки:",
+        reply_markup=kb,
     )
     await show_progress(message, 1, 9)
-    await state.set_state(TruckAddStates.city)
+    await state.set_state(TruckAddStates.region)
 
 
-async def process_city(message: types.Message, state: FSMContext):
-    await state.update_data(city=message.text.strip())
+async def process_region(message: types.Message, state: FSMContext):
+    region = message.text.strip()
+    if region not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+
+    await state.update_data(region=region)
+
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     await ask_and_store(
         message,
         state,
-        "Регион стоянки:",
-        TruckAddStates.region
+        "В каком городе стоит ТС?",
+        TruckAddStates.city,
+        reply_markup=kb,
     )
     await show_progress(message, 2, 9)
 
 
-async def process_region(message: types.Message, state: FSMContext):
-    await state.update_data(region=message.text.strip())
+async def process_city(message: types.Message, state: FSMContext):
+    await state.update_data(city=message.text.strip())
     await ask_and_store(
         message,
         state,
@@ -407,8 +427,8 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
 def register_truck_handlers(dp: Dispatcher):
     # Добавление ТС (без изменений)
     dp.message.register(cmd_start_add_truck, lambda m: m.text == "➕ Добавить ТС")
-    dp.message.register(process_city,          StateFilter(TruckAddStates.city))
     dp.message.register(process_region,        StateFilter(TruckAddStates.region))
+    dp.message.register(process_city,          StateFilter(TruckAddStates.city))
     dp.message.register(process_date_from,     StateFilter(TruckAddStates.date_from))
     dp.message.register(process_date_to,       StateFilter(TruckAddStates.date_to))
     dp.message.register(process_weight,        StateFilter(TruckAddStates.weight))

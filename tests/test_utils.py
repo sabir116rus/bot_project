@@ -23,6 +23,7 @@ from utils import (
     validate_weight,
     validate_phone,
 )
+from locations import get_regions, get_cities
 
 
 def test_parse_date_valid():
@@ -68,3 +69,11 @@ def test_validate_phone_valid():
 )
 def test_validate_phone_invalid(phone):
     assert not validate_phone(phone)
+
+
+def test_locations_lists():
+    regions = get_regions()
+    assert regions, "regions list should not be empty"
+    for r in regions:
+        cities = get_cities(r)
+        assert cities, f"{r} should have cities"
