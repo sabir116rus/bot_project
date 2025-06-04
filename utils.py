@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from datetime import datetime
+from functools import lru_cache
 
 from aiogram import types
 from db import get_connection
@@ -64,3 +65,57 @@ def format_date_for_display(iso_date: str) -> str:
         return dt.strftime("%d.%m.%Y")
     except Exception:
         return iso_date  # если парсинг не удался, возвращаем как есть
+
+
+# ==== Cached helpers for unique cities ====
+
+@lru_cache(maxsize=1)
+def get_unique_cities_from() -> list[str]:
+    """Return sorted list of unique origin cities from cargo table."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT city_from FROM cargo WHERE city_from IS NOT NULL"
+        )
+        rows = cursor.fetchall()
+
+    cities = [r["city_from"] for r in rows if r["city_from"].strip()]
+    cities.sort(key=lambda x: x.lower())
+    return cities
+
+
+@lru_cache(maxsize=1)
+def get_unique_cities_to() -> list[str]:
+    """Return sorted list of unique destination cities from cargo table."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT city_to FROM cargo WHERE city_to IS NOT NULL"
+        )
+        rows = cursor.fetchall()
+
+    cities = [r["city_to"] for r in rows if r["city_to"].strip()]
+    cities.sort(key=lambda x: x.lower())
+    return cities
+
+
+@lru_cache(maxsize=1)
+def get_unique_truck_cities() -> list[str]:
+    """Return sorted list of unique truck cities from trucks table."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT city FROM trucks WHERE city IS NOT NULL"
+        )
+        rows = cursor.fetchall()
+
+    cities = [r["city"] for r in rows if r["city"].strip()]
+    cities.sort(key=lambda x: x.lower())
+    return cities
+
+
+def clear_city_cache() -> None:
+    """Invalidate cached city lists."""
+    get_unique_cities_from.cache_clear()
+    get_unique_cities_to.cache_clear()
+    get_unique_truck_cities.cache_clear()

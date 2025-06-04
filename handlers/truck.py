@@ -9,7 +9,13 @@ from datetime import datetime
 
 from db import get_connection
 from .common import get_main_menu, ask_and_store
-from utils import parse_date, get_current_user_id, format_date_for_display
+from utils import (
+    parse_date,
+    get_current_user_id,
+    format_date_for_display,
+    get_unique_truck_cities,
+    clear_city_cache,
+)
 
 
 class TruckAddStates(StatesGroup):
@@ -236,6 +242,8 @@ async def process_truck_comment(message: types.Message, state: FSMContext):
         )
         conn.commit()
 
+    clear_city_cache()
+
     await message.answer("✅ ТС успешно добавлено!", reply_markup=get_main_menu())
     await state.clear()
 
@@ -254,15 +262,8 @@ async def cmd_start_find_trucks(message: types.Message, state: FSMContext):
     # Удаляем сообщение-инициатор (нажатие "🔍 Найти ТС")
     await message.delete()
 
-    # Получаем уникальные города стоянки из таблицы trucks
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT city FROM trucks WHERE city IS NOT NULL")
-    rows = cursor.fetchall()
-    conn.close()
-
-    cities = [r["city"] for r in rows if r["city"].strip()]
-    cities.sort(key=lambda x: x.lower())
+    # Получаем уникальные города стоянки
+    cities = get_unique_truck_cities()
 
     kb_buttons = [[types.KeyboardButton(text=city)] for city in cities]
     kb_buttons.append([types.KeyboardButton(text="Все")])
