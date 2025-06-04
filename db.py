@@ -3,6 +3,8 @@
 import sqlite3
 import os
 
+from config import Config
+
 # Always use path relative to this file so running the bot from any working
 # directory works correctly.
 DB_PATH = os.path.join(os.path.dirname(__file__), "bot_database.sqlite3")
@@ -25,7 +27,7 @@ def init_db():
         created_at TEXT
     );
     """)
-    cursor.execute("""
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS cargo (
         id INTEGER PRIMARY KEY,
         user_id INTEGER,
@@ -35,7 +37,7 @@ def init_db():
         region_to TEXT,
         date_from TEXT,
         date_to TEXT,
-        weight INTEGER,
+        weight INTEGER CHECK(weight > 0 AND weight <= {Config.MAX_WEIGHT}),
         body_type TEXT,
         is_local INTEGER,
         comment TEXT,
@@ -43,7 +45,7 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
     """)
-    cursor.execute("""
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS trucks (
         id INTEGER PRIMARY KEY,
         user_id INTEGER,
@@ -51,7 +53,7 @@ def init_db():
         region TEXT,
         date_from TEXT,
         date_to TEXT,
-        weight INTEGER,
+        weight INTEGER CHECK(weight > 0 AND weight <= {Config.MAX_WEIGHT}),
         body_type TEXT,
         direction TEXT,  -- 'ищу заказ' / 'попутный'
         route_regions TEXT,  -- список регионов в текстовом виде
@@ -60,6 +62,16 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
     """)
+    # Create indexes if they do not exist
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cargo_dates ON cargo(date_from, date_to)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cargo_cities ON cargo(city_from, city_to)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_trucks_city_date ON trucks(city, date_from)"
+    )
     conn.commit()
     conn.close()
 
