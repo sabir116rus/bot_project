@@ -4,15 +4,18 @@ from aiogram import types, Dispatcher
 from aiogram.types import KeyboardButton
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State
+from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store
+from .common import get_main_menu, ask_and_store, show_search_results
 from utils import parse_date, get_current_user_id, format_date_for_display, log_user_action
+from config import Config
 
 
-class TruckAddStates(StatesGroup):
+
+class TruckAddStates(BaseStates):
     city          = State()
     region        = State()
     date_from     = State()
@@ -24,7 +27,7 @@ class TruckAddStates(StatesGroup):
     comment       = State()
 
 
-class TruckSearchStates(StatesGroup):
+class TruckSearchStates(BaseStates):
     city          = State()
     date_from     = State()
     date_to       = State()
@@ -113,13 +116,10 @@ async def process_weight(message: types.Message, state: FSMContext):
 
     await state.update_data(weight=weight)
 
+    kb_buttons = [[KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
+    kb_buttons.append([KeyboardButton(text="Любой")])
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Рефрижератор")],
-            [KeyboardButton(text="Тент")],
-            [KeyboardButton(text="Изотерм")],
-            [KeyboardButton(text="Любой")]
-        ],
+        keyboard=kb_buttons,
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -134,17 +134,14 @@ async def process_weight(message: types.Message, state: FSMContext):
 
 async def process_body_type(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    if text not in ("Рефрижератор", "Тент", "Изотерм", "Любой"):
+    if text not in (Config.BODY_TYPES + ["Любой"]):
         await message.answer("Пожалуйста, нажми одну из кнопок: «Рефрижератор», «Тент», «Изотерм» или «Любой».")
         return
 
     await state.update_data(body_type=text)
 
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Ищу заказ")],
-            [KeyboardButton(text="Попутный путь")]
-        ],
+        keyboard=[[KeyboardButton(text=opt)] for opt in Config.TRUCK_DIRECTIONS],
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -159,7 +156,7 @@ async def process_body_type(message: types.Message, state: FSMContext):
 
 async def process_direction(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    if text not in ("Ищу заказ", "Попутный путь"):
+    if text not in Config.TRUCK_DIRECTIONS:
         await message.answer("Пожалуйста, нажми «Ищу заказ» или «Попутный путь».")
         return
 
@@ -389,18 +386,7 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     if not rows:
         await message.answer("📬 По вашему запросу ТС не найдено.", reply_markup=get_main_menu())
     else:
-        text = "📋 Найденные ТС:\n\n"
-        for r in rows:
-            date_disp = format_date_for_display(r["date_from"])
-            text += (
-                f"ID: {r['id']}\n"
-                f"Владелец: {r['name']}\n"
-                f"{r['city']}, {r['region']}\n"
-                f"Дата доступно: {date_disp}\n"
-                f"Грузоподъёмность: {r['weight']} т, Кузов: {r['body_type']}\n"
-                f"Направление: {r['direction']}\n\n"
-            )
-        await message.answer(text, reply_markup=get_main_menu())
+        await show_search_results(message, rows)
 
     log_user_action(user_id, "truck_search", f"results={len(rows)}")
     await state.clear()
