@@ -163,13 +163,10 @@ async def fake_ask_and_store(message, state, text, next_state, reply_markup=None
     message.stored = text
     await state.set_state(next_state)
 
-async def fake_show_progress(message, step, total):
-    message.progress = step
 
 
 def test_cargo_process_weight_invalid(monkeypatch):
     monkeypatch.setattr(cargo, "ask_and_store", fake_ask_and_store)
-    monkeypatch.setattr(cargo, "show_progress", fake_show_progress)
 
     called = {}
     def fake_validate(val):
@@ -189,7 +186,6 @@ def test_cargo_process_weight_invalid(monkeypatch):
 
 def test_cargo_process_weight_valid(monkeypatch):
     monkeypatch.setattr(cargo, "ask_and_store", fake_ask_and_store)
-    monkeypatch.setattr(cargo, "show_progress", fake_show_progress)
     monkeypatch.setattr(cargo, "validate_weight", lambda v: (True, 5))
 
     msg = DummyMessage("5")
@@ -203,7 +199,6 @@ def test_cargo_process_weight_valid(monkeypatch):
 
 def test_truck_process_weight_invalid(monkeypatch):
     monkeypatch.setattr(truck, "ask_and_store", fake_ask_and_store)
-    monkeypatch.setattr(truck, "show_progress", fake_show_progress)
     monkeypatch.setattr(truck, "validate_weight", lambda v: (False, 0))
 
     msg = DummyMessage("x")
@@ -217,7 +212,6 @@ def test_truck_process_weight_invalid(monkeypatch):
 
 def test_truck_process_weight_valid(monkeypatch):
     monkeypatch.setattr(truck, "ask_and_store", fake_ask_and_store)
-    monkeypatch.setattr(truck, "show_progress", fake_show_progress)
     monkeypatch.setattr(truck, "validate_weight", lambda v: (True, 8))
 
     msg = DummyMessage("8")

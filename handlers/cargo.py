@@ -19,7 +19,6 @@ from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
-    show_progress,
     log_user_action,
     get_unique_cities_from,
     get_unique_cities_to,
@@ -66,12 +65,13 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
     page = 0
     regions, _, has_next = get_regions_page(page)
     kb = create_paged_keyboard(regions, False, has_next)
-    await message.answer(
+    await ask_and_store(
+        message,
+        state,
         "📦 Начнём добавление груза.\nВыбери регион отправления:",
+        CargoAddStates.region_from,
         reply_markup=kb,
     )
-    await show_progress(message, 1, 10)
-    await state.set_state(CargoAddStates.region_from)
     await state.update_data(rf_page=page)
 
 
@@ -106,7 +106,6 @@ async def process_region_from(message: types.Message, state: FSMContext):
     cpage = 0
     cities, _, has_next = get_cities_page(text, cpage)
     kb = create_paged_keyboard(cities, False, has_next)
-
     await ask_and_store(
         message,
         state,
@@ -115,7 +114,6 @@ async def process_region_from(message: types.Message, state: FSMContext):
         reply_markup=kb,
     )
     await state.update_data(cf_page=cpage)
-    await show_progress(message, 2, 10)
 
 
 async def process_city_from(message: types.Message, state: FSMContext):
@@ -146,7 +144,6 @@ async def process_city_from(message: types.Message, state: FSMContext):
     rpage = 0
     regions, _, has_next = get_regions_page(rpage)
     kb = create_paged_keyboard(regions, False, has_next)
-
     await ask_and_store(
         message,
         state,
@@ -155,7 +152,6 @@ async def process_city_from(message: types.Message, state: FSMContext):
         reply_markup=kb,
     )
     await state.update_data(rt_page=rpage)
-    await show_progress(message, 3, 10)
 
 
 async def process_region_to(message: types.Message, state: FSMContext):
@@ -189,7 +185,6 @@ async def process_region_to(message: types.Message, state: FSMContext):
     cpage = 0
     cities, _, has_next = get_cities_page(text, cpage)
     kb = create_paged_keyboard(cities, False, has_next)
-
     await ask_and_store(
         message,
         state,
@@ -198,7 +193,6 @@ async def process_region_to(message: types.Message, state: FSMContext):
         reply_markup=kb,
     )
     await state.update_data(ct_page=cpage)
-    await show_progress(message, 4, 10)
 
 
 async def process_city_to(message: types.Message, state: FSMContext):
@@ -238,7 +232,6 @@ async def process_city_to(message: types.Message, state: FSMContext):
         calendar_next_text="Дата прибытия:",
         calendar_next_markup=generate_calendar(),
     )
-    await show_progress(message, 5, 10)
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
@@ -262,7 +255,6 @@ async def process_date_from(message: types.Message, state: FSMContext):
         calendar_next_text="Вес (в тоннах, цифрой):",
         calendar_next_markup=None,
     )
-    await show_progress(message, 6, 10)
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
@@ -289,7 +281,6 @@ async def process_date_to(message: types.Message, state: FSMContext):
         CargoAddStates.weight
     )
     await state.update_data(calendar_field=None)
-    await show_progress(message, 7, 10)
 
 
 async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
@@ -354,7 +345,6 @@ async def process_weight(message: types.Message, state: FSMContext):
         CargoAddStates.body_type,
         reply_markup=kb
     )
-    await show_progress(message, 8, 10)
 
 
 async def process_body_type(message: types.Message, state: FSMContext):
@@ -380,7 +370,6 @@ async def process_body_type(message: types.Message, state: FSMContext):
         CargoAddStates.is_local,
         reply_markup=kb
     )
-    await show_progress(message, 9, 10)
 
 
 async def process_is_local(message: types.Message, state: FSMContext):
@@ -397,7 +386,6 @@ async def process_is_local(message: types.Message, state: FSMContext):
         "Добавь комментарий (или напиши 'нет'):",
         CargoAddStates.comment
     )
-    await show_progress(message, 10, 10)
 
 
 async def process_comment(message: types.Message, state: FSMContext):
@@ -422,7 +410,7 @@ async def process_comment(message: types.Message, state: FSMContext):
 
     # Удаляем сообщение пользователя (с комментарием)
     await message.delete()
-    # Удаляем последний бот-вопрос
+    # Удаляем последний бот-вопрос и прогресс
     bot_data = await state.get_data()
     last_bot_msg_id = bot_data.get("last_bot_message_id")
     if last_bot_msg_id:

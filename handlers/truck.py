@@ -20,7 +20,6 @@ from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
-    show_progress,
     log_user_action,
     get_unique_truck_cities,
     clear_city_cache,
@@ -63,12 +62,13 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
     page = 0
     regions, _, has_next = get_regions_page(page)
     kb = create_paged_keyboard(regions, False, has_next)
-    await message.answer(
+    await ask_and_store(
+        message,
+        state,
         "🚛 Начнём добавление ТС.\nВыберите регион стоянки:",
+        TruckAddStates.region,
         reply_markup=kb,
     )
-    await show_progress(message, 1, 9)
-    await state.set_state(TruckAddStates.region)
     await state.update_data(r_page=page)
 
 
@@ -111,7 +111,6 @@ async def process_region(message: types.Message, state: FSMContext):
         reply_markup=kb,
     )
     await state.update_data(c_page=cpage)
-    await show_progress(message, 2, 9)
 
 
 async def process_city(message: types.Message, state: FSMContext):
@@ -151,7 +150,6 @@ async def process_city(message: types.Message, state: FSMContext):
         calendar_next_text="Дата доступности (по):",
         calendar_next_markup=generate_calendar(),
     )
-    await show_progress(message, 3, 9)
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
@@ -175,7 +173,6 @@ async def process_date_from(message: types.Message, state: FSMContext):
         calendar_next_text="Грузоподъёмность (в тоннах):",
         calendar_next_markup=None,
     )
-    await show_progress(message, 4, 9)
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
@@ -202,7 +199,6 @@ async def process_date_to(message: types.Message, state: FSMContext):
         TruckAddStates.weight
     )
     await state.update_data(calendar_field=None)
-    await show_progress(message, 5, 9)
 
 
 async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
@@ -267,7 +263,6 @@ async def process_weight(message: types.Message, state: FSMContext):
         TruckAddStates.body_type,
         reply_markup=kb
     )
-    await show_progress(message, 6, 9)
 
 
 async def process_body_type(message: types.Message, state: FSMContext):
@@ -290,7 +285,6 @@ async def process_body_type(message: types.Message, state: FSMContext):
         TruckAddStates.direction,
         reply_markup=kb
     )
-    await show_progress(message, 7, 9)
 
 
 async def process_direction(message: types.Message, state: FSMContext):
@@ -306,7 +300,6 @@ async def process_direction(message: types.Message, state: FSMContext):
         "Перечисли через запятую регионы, где готов ехать (или 'нет'):",
         TruckAddStates.route_regions
     )
-    await show_progress(message, 8, 9)
 
 
 async def process_route_regions(message: types.Message, state: FSMContext):
@@ -319,7 +312,6 @@ async def process_route_regions(message: types.Message, state: FSMContext):
         "Добавь комментарий (или напиши 'нет'):",
         TruckAddStates.comment
     )
-    await show_progress(message, 9, 9)
 
 
 async def process_truck_comment(message: types.Message, state: FSMContext):
