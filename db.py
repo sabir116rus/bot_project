@@ -6,11 +6,11 @@ from config import Config
 
 # Database file path can be overridden in tests via monkeypatching
 DB_PATH = Config.DB_PATH
-
 # Always use path relative to this file so running the bot from any working
 # directory works correctly. Path is now defined in Config.
 
 def get_connection():
+    """Return a new SQLite connection using :data:`DB_PATH`."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
