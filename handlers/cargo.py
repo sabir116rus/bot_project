@@ -3,7 +3,8 @@
 from aiogram import types, Dispatcher
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State
+from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
@@ -12,7 +13,7 @@ from utils import parse_date, get_current_user_id, format_date_for_display
 from config import Config
 
 
-class CargoAddStates(StatesGroup):
+class CargoAddStates(BaseStates):
     city_from    = State()
     region_from  = State()
     city_to      = State()
@@ -25,7 +26,7 @@ class CargoAddStates(StatesGroup):
     comment      = State()
 
 
-class CargoSearchStates(StatesGroup):
+class CargoSearchStates(BaseStates):
     city_from    = State()
     city_to      = State()
     date_from    = State()
