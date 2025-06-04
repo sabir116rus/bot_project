@@ -9,11 +9,18 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 aiogram_module = types.ModuleType("aiogram")
 aiogram_types_module = types.ModuleType("aiogram.types")
 aiogram_module.types = aiogram_types_module
+aiogram_fsm_context_module = types.ModuleType("aiogram.fsm.context")
+aiogram_module.fsm = types.ModuleType("aiogram.fsm")
+aiogram_module.fsm.context = aiogram_fsm_context_module
+class FSMContext:
+    pass
+aiogram_fsm_context_module.FSMContext = FSMContext
 class _DummyMessage:
     pass
 aiogram_types_module.Message = _DummyMessage
 sys.modules.setdefault("aiogram", aiogram_module)
 sys.modules.setdefault("aiogram.types", aiogram_types_module)
+sys.modules.setdefault("aiogram.fsm.context", aiogram_fsm_context_module)
 
 import sqlite3
 

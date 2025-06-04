@@ -163,7 +163,7 @@ async def fake_ask_and_store(message, state, text, next_state, reply_markup=None
     message.stored = text
     await state.set_state(next_state)
 
-async def fake_show_progress(message, step, total):
+async def fake_show_progress(message, state, step, total):
     message.progress = step
 
 
