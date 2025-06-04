@@ -112,7 +112,7 @@ async def show_search_results(message: types.Message, rows, page: int = 0, per_p
 
     # Determine row type
     is_cargo = "city_from" in page_rows[0].keys()
-    header = "\ud83d\udccb \u041d\u0430\u0439\u0434\u0435\u043d\u043d\u044b\u0435 \u0433\u0440\u0443\u0437\u044b:\n\n" if is_cargo else "\ud83d\udccb \u041d\u0430\u0439\u0434\u0435\u043d\u043d\u044b\u0435 \u0422\u0421:\n\n"
+    header = "📋 Найденные грузы:\n\n" if is_cargo else "📋 Найденные ТС:\n\n"
     text = header
 
     for r in page_rows:
