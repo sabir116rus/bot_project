@@ -70,6 +70,17 @@ def format_date_for_display(iso_date: str) -> str:
         return iso_date  # если парсинг не удался, возвращаем как есть
 
 
+
+async def show_progress(message: types.Message, step: int, total: int) -> None:
+    """Отображает прогресс в виде текстовой шкалы."""
+    if total <= 0:
+        return
+
+    bar_length = 10
+    filled = int(bar_length * step / total)
+    bar = "█" * filled + "░" * (bar_length - filled)
+    await message.answer(f"Прогресс: {bar} {step}/{total}")
+
 # ==== Cached helpers for unique cities ====
 
 @lru_cache(maxsize=1)
