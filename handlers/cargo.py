@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store
+from .common import get_main_menu, ask_and_store, show_search_results
 from utils import parse_date, get_current_user_id, format_date_for_display
 
 
@@ -455,17 +455,7 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     if not rows:
         await message.answer("📬 По вашему запросу ничего не найдено.", reply_markup=get_main_menu())
     else:
-        text = "📋 Найденные грузы:\n\n"
-        for r in rows:
-            date_disp = format_date_for_display(r["date_from"])
-            text += (
-                f"ID: {r['id']}\n"
-                f"Владелец: {r['name']}\n"
-                f"{r['city_from']}, {r['region_from']} → {r['city_to']}, {r['region_to']}\n"
-                f"Дата отправления: {date_disp}\n"
-                f"Вес: {r['weight']} т, Кузов: {r['body_type']}\n\n"
-            )
-        await message.answer(text, reply_markup=get_main_menu())
+        await show_search_results(message, rows)
 
     await state.clear()
 
