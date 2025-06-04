@@ -4,7 +4,8 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
 
 ## Major features
 
-- **User registration** via `/start` with name, city and phone number.
+- **User registration** via `/start` with name, city and phone number
+  (11 digits, optionally starting with `+`).
 - **Cargo management**: add new cargo entries and search existing ones.
 - **Truck management**: add a truck and search available trucks.
 - **Profile view** with "📋 Мой профиль" button.
