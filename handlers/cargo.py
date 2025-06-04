@@ -9,6 +9,7 @@ from datetime import datetime
 
 from db import get_connection
 from .common import get_main_menu, ask_and_store, show_search_results
+from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
     get_current_user_id,
@@ -141,8 +142,15 @@ async def process_city_to(message: types.Message, state: FSMContext):
     await ask_and_store(
         message,
         state,
-        "Дата отправления (ДД.MM.ГГГГ):",
-        CargoAddStates.date_from
+        "Дата отправления:",
+        CargoAddStates.date_from,
+        reply_markup=generate_calendar(),
+    )
+    await state.update_data(
+        calendar_field="date_from",
+        calendar_next_state=CargoAddStates.date_to,
+        calendar_next_text="Дата прибытия:",
+        calendar_next_markup=generate_calendar(),
     )
     await show_progress(message, 5, 10)
 
@@ -158,8 +166,15 @@ async def process_date_from(message: types.Message, state: FSMContext):
     await ask_and_store(
         message,
         state,
-        "Дата прибытия (ДД.MM.ГГГГ):",
-        CargoAddStates.date_to
+        "Дата прибытия:",
+        CargoAddStates.date_to,
+        reply_markup=generate_calendar(),
+    )
+    await state.update_data(
+        calendar_field="date_to",
+        calendar_next_state=CargoAddStates.weight,
+        calendar_next_text="Вес (в тоннах, цифрой):",
+        calendar_next_markup=None,
     )
     await show_progress(message, 6, 10)
 
@@ -187,7 +202,44 @@ async def process_date_to(message: types.Message, state: FSMContext):
         "Вес (в тоннах, цифрой):",
         CargoAddStates.weight
     )
+    await state.update_data(calendar_field=None)
     await show_progress(message, 7, 10)
+
+
+async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_from selection from the calendar."""
+    date_iso = callback.data.split(":", 1)[1]
+    await state.update_data(date_from=date_iso)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Дата прибытия:", reply_markup=generate_calendar()
+    )
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="date_to",
+    )
+    await state.set_state(CargoAddStates.date_to)
+    await callback.answer()
+
+
+async def process_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_to selection from the calendar."""
+    date_iso = callback.data.split(":", 1)[1]
+    data = await state.get_data()
+    df_iso = data.get("date_from")
+    dt_from = datetime.strptime(df_iso, "%Y-%m-%d") if df_iso else None
+    dt_to = datetime.strptime(date_iso, "%Y-%m-%d")
+    if dt_from and dt_to < dt_from:
+        await callback.answer("Неверная дата", show_alert=True)
+        return
+    await state.update_data(date_to=date_iso, calendar_field=None)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Вес (в тоннах, цифрой):"
+    )
+    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.set_state(CargoAddStates.weight)
+    await callback.answer()
 
 
 async def process_weight(message: types.Message, state: FSMContext):
@@ -418,10 +470,16 @@ async def filter_city_to(message: types.Message, state: FSMContext):
 
     # Спрашиваем минимальную дату отправления
     bot_msg = await message.answer(
-        "Введите минимальную дату отправления (ДД.MM.ГГГГ) или «нет»:",
-        reply_markup=types.ReplyKeyboardRemove()
+        "Минимальная дата отправления:",
+        reply_markup=generate_calendar(include_skip=True)
     )
-    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_from",
+        calendar_next_state=CargoSearchStates.date_to,
+        calendar_next_text="Максимальная дата отправления:",
+        calendar_next_markup=generate_calendar(include_skip=True),
+    )
     await state.set_state(CargoSearchStates.date_from)
 
 async def filter_date_from(message: types.Message, state: FSMContext):
@@ -447,10 +505,16 @@ async def filter_date_from(message: types.Message, state: FSMContext):
 
     # Спрашиваем максимальную дату отправления
     bot_msg = await message.answer(
-        "Введите максимальную дату отправления (ДД.MM.ГГГГ) или «нет»:",
-        reply_markup=types.ReplyKeyboardRemove()
+        "Максимальная дата отправления:",
+        reply_markup=generate_calendar(include_skip=True)
     )
-    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_to",
+        calendar_next_state=CargoSearchStates.date_to,
+        calendar_next_text="",
+        calendar_next_markup=None,
+    )
     await state.set_state(CargoSearchStates.date_to)
 
 async def filter_date_to(message: types.Message, state: FSMContext):
@@ -515,6 +579,84 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     log_user_action(user_id, "cargo_search", f"results={len(rows)}")
     await state.clear()
 
+
+async def filter_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_from selection for cargo search."""
+    if callback.data == "cal:skip":
+        await state.update_data(filter_date_from="нет")
+    else:
+        value = callback.data.split(":", 1)[1]
+        await state.update_data(filter_date_from=value)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Максимальная дата отправления:",
+        reply_markup=generate_calendar(include_skip=True)
+    )
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_to",
+    )
+    await state.set_state(CargoSearchStates.date_to)
+    await callback.answer()
+
+
+async def filter_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_to selection for cargo search and show results."""
+    if callback.data == "cal:skip":
+        await state.update_data(filter_date_to="нет")
+    else:
+        value = callback.data.split(":", 1)[1]
+        await state.update_data(filter_date_to=value)
+
+    data = await state.get_data()
+    user_id = await get_current_user_id(callback.message)
+    fc_from = data.get("filter_city_from", "")
+    fc_to = data.get("filter_city_to", "")
+    fd_from = data.get("filter_date_from", "")
+    fd_to = data.get("filter_date_to", "")
+
+    query = """
+    SELECT c.id, u.name, c.city_from, c.region_from, c.city_to, c.region_to, c.date_from, c.weight, c.body_type
+    FROM cargo c
+    JOIN users u ON c.user_id = u.id
+    WHERE 1=1
+    """
+    params = []
+    if fc_from != "все":
+        query += " AND lower(c.city_from) = ?"
+        params.append(fc_from)
+    if fc_to != "все":
+        query += " AND lower(c.city_to) = ?"
+        params.append(fc_to)
+    if fd_from != "нет":
+        query += " AND date(c.date_from) >= date(?)"
+        params.append(fd_from)
+    if fd_to != "нет":
+        query += " AND date(c.date_from) <= date(?)"
+        params.append(fd_to)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    conn.close()
+
+    await callback.message.delete()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await callback.message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
+
+    if not rows:
+        await callback.message.answer("📬 По вашему запросу ничего не найдено.", reply_markup=get_main_menu())
+    else:
+        await show_search_results(callback.message, rows)
+
+    log_user_action(user_id, "cargo_search", f"results={len(rows)}")
+    await state.clear()
+
 def register_cargo_handlers(dp: Dispatcher):
     # Добавление груза (осталось без изменений)
     dp.message.register(cmd_start_add_cargo, lambda m: m.text == "➕ Добавить груз")
@@ -524,6 +666,16 @@ def register_cargo_handlers(dp: Dispatcher):
     dp.message.register(process_city_to,     StateFilter(CargoAddStates.city_to))
     dp.message.register(process_date_from,   StateFilter(CargoAddStates.date_from))
     dp.message.register(process_date_to,     StateFilter(CargoAddStates.date_to))
+    dp.callback_query.register(
+        process_date_from_cb,
+        StateFilter(CargoAddStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        process_date_to_cb,
+        StateFilter(CargoAddStates.date_to),
+        lambda c: c.data.startswith("cal:")
+    )
     dp.message.register(process_weight,      StateFilter(CargoAddStates.weight))
     dp.message.register(process_body_type,   StateFilter(CargoAddStates.body_type))
     dp.message.register(process_is_local,    StateFilter(CargoAddStates.is_local))
@@ -534,3 +686,13 @@ def register_cargo_handlers(dp: Dispatcher):
     dp.message.register(filter_city_to,       StateFilter(CargoSearchStates.city_to))
     dp.message.register(filter_date_from,     StateFilter(CargoSearchStates.date_from))
     dp.message.register(filter_date_to,       StateFilter(CargoSearchStates.date_to))
+    dp.callback_query.register(
+        filter_date_from_cb,
+        StateFilter(CargoSearchStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        filter_date_to_cb,
+        StateFilter(CargoSearchStates.date_to),
+        lambda c: c.data.startswith("cal:")
+    )

@@ -384,12 +384,18 @@ async def filter_city(message: types.Message, state: FSMContext):
         except Exception:
             pass
 
-    # Спрашиваем минимальную дату начала (ДД.MM.ГГГГ) или 'нет'
+    # Спрашиваем минимальную дату начала
     bot_msg = await message.answer(
-        "Введите минимальную дату начала (ДД.MM.ГГГГ) или «нет»:",
-        reply_markup=types.ReplyKeyboardRemove()
+        "Минимальная дата начала:",
+        reply_markup=generate_calendar(include_skip=True)
     )
-    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_from",
+        calendar_next_state=TruckSearchStates.date_to,
+        calendar_next_text="Максимальная дата начала:",
+        calendar_next_markup=generate_calendar(include_skip=True),
+    )
     await state.set_state(TruckSearchStates.date_from)
 
 async def filter_date_from_truck(message: types.Message, state: FSMContext):
@@ -415,10 +421,16 @@ async def filter_date_from_truck(message: types.Message, state: FSMContext):
 
     # Спрашиваем максимальную дату начала
     bot_msg = await message.answer(
-        "Введите максимальную дату начала (ДД.MM.ГГГГ) или «нет»:",
-        reply_markup=types.ReplyKeyboardRemove()
+        "Максимальная дата начала:",
+        reply_markup=generate_calendar(include_skip=True)
     )
-    await state.update_data(last_bot_message_id=bot_msg.message_id)
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_to",
+        calendar_next_state=TruckSearchStates.date_to,
+        calendar_next_text="",
+        calendar_next_markup=None,
+    )
     await state.set_state(TruckSearchStates.date_to)
 
 async def filter_date_to_truck(message: types.Message, state: FSMContext):
@@ -479,6 +491,80 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     log_user_action(user_id, "truck_search", f"results={len(rows)}")
     await state.clear()
 
+
+async def filter_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_from selection for truck search."""
+    if callback.data == "cal:skip":
+        await state.update_data(filter_date_from="нет")
+    else:
+        val = callback.data.split(":", 1)[1]
+        await state.update_data(filter_date_from=val)
+    await callback.message.delete()
+    bot_msg = await callback.message.answer(
+        "Максимальная дата начала:",
+        reply_markup=generate_calendar(include_skip=True)
+    )
+    await state.update_data(
+        last_bot_message_id=bot_msg.message_id,
+        calendar_field="filter_date_to",
+    )
+    await state.set_state(TruckSearchStates.date_to)
+    await callback.answer()
+
+
+async def filter_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
+    """Handle date_to selection for truck search and show results."""
+    if callback.data == "cal:skip":
+        await state.update_data(filter_date_to="нет")
+    else:
+        val = callback.data.split(":", 1)[1]
+        await state.update_data(filter_date_to=val)
+
+    data = await state.get_data()
+    user_id = await get_current_user_id(callback.message)
+    fc = data.get("filter_city", "")
+    fd_from = data.get("filter_date_from", "")
+    fd_to = data.get("filter_date_to", "")
+
+    query = """
+    SELECT t.id, u.name, t.city, t.region, t.date_from, t.weight, t.body_type, t.direction
+    FROM trucks t
+    JOIN users u ON t.user_id = u.id
+    WHERE 1=1
+    """
+    params = []
+    if fc != "все":
+        query += " AND lower(t.city) = ?"
+        params.append(fc)
+    if fd_from != "нет":
+        query += " AND date(t.date_from) >= date(?)"
+        params.append(fd_from)
+    if fd_to != "нет":
+        query += " AND date(t.date_from) <= date(?)"
+        params.append(fd_to)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    conn.close()
+
+    await callback.message.delete()
+    prev_bot_id = data.get("last_bot_message_id")
+    if prev_bot_id:
+        try:
+            await callback.message.chat.delete_message(prev_bot_id)
+        except Exception:
+            pass
+
+    if not rows:
+        await callback.message.answer("📬 По вашему запросу ТС не найдено.", reply_markup=get_main_menu())
+    else:
+        await show_search_results(callback.message, rows)
+
+    log_user_action(user_id, "truck_search", f"results={len(rows)}")
+    await state.clear()
+
 def register_truck_handlers(dp: Dispatcher):
     # Добавление ТС (без изменений)
     dp.message.register(cmd_start_add_truck, lambda m: m.text == "➕ Добавить ТС")
@@ -506,3 +592,13 @@ def register_truck_handlers(dp: Dispatcher):
     dp.message.register(filter_city,                 StateFilter(TruckSearchStates.city))
     dp.message.register(filter_date_from_truck,      StateFilter(TruckSearchStates.date_from))
     dp.message.register(filter_date_to_truck,        StateFilter(TruckSearchStates.date_to))
+    dp.callback_query.register(
+        filter_date_from_cb,
+        StateFilter(TruckSearchStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        filter_date_to_cb,
+        StateFilter(TruckSearchStates.date_to),
+        lambda c: c.data.startswith("cal:")
+    )
