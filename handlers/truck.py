@@ -18,6 +18,7 @@ from utils import (
     log_user_action,
     get_unique_truck_cities,
     clear_city_cache,
+    validate_weight,
 )
 from config import Config
 from locations import get_regions, get_cities
@@ -141,11 +142,13 @@ async def process_date_to(message: types.Message, state: FSMContext):
 
 
 async def process_weight(message: types.Message, state: FSMContext):
+    """Store truck weight after validating the input."""
     raw = message.text.strip()
-    try:
-        weight = int(raw)
-    except ValueError:
-        await message.answer("Введи грузоподъёмность цифрой (например, 15):")
+    ok, weight = validate_weight(raw)
+    if not ok:
+        await message.answer(
+            "Введи грузоподъёмность от 1 до 1000 тонн цифрой (например, 15):"
+        )
         return
 
     await state.update_data(weight=weight)
