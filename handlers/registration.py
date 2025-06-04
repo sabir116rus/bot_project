@@ -9,7 +9,11 @@ from aiogram.types import ReplyKeyboardRemove, ContentType
 from db import get_connection
 from datetime import datetime
 from .common import get_main_menu
-from utils import get_current_user_id, log_user_action
+from utils import (
+    get_current_user_id,
+    log_user_action,
+    validate_phone,
+)
 
 
 class Registration(StatesGroup):
@@ -67,6 +71,13 @@ async def process_phone(message: types.Message, state: FSMContext):
         phone = message.contact.phone_number
     else:
         phone = message.text.strip()
+
+    if not validate_phone(phone):
+        await message.answer(
+            "Некорректный номер телефона. "
+            "Пожалуйста, отправь его в формате +79991234567."
+        )
+        return
 
     # Сохраняем данные
     data = await state.get_data()
