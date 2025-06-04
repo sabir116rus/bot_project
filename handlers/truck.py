@@ -9,7 +9,11 @@ from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store, show_search_results
+from .common import (
+    get_main_menu,
+    ask_and_store,
+    show_search_results,
+)
 from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
@@ -22,7 +26,10 @@ from utils import (
     validate_weight,
 )
 from config import Config
-from locations import get_regions, get_cities
+from locations import (
+    get_regions,
+    get_cities,
+)
 
 class TruckAddStates(BaseStates):
     region        = State()
@@ -65,14 +72,13 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
 
 
 async def process_region(message: types.Message, state: FSMContext):
-    region = message.text.strip()
-    if region not in get_regions():
+    text = message.text.strip()
+    if text not in get_regions():
         await message.answer("Пожалуйста, выбери регион из списка.")
         return
 
-    await state.update_data(region=region)
-
-    cities = get_cities(region)
+    await state.update_data(region=text)
+    cities = get_cities(text)
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=c)] for c in cities],
         resize_keyboard=True,
