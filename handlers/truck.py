@@ -99,6 +99,12 @@ async def process_region(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(region=text)
+    cities = get_cities(text)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
 
     cpage = 0
     cities, _, has_next = get_cities_page(text, cpage)

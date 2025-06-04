@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 from functools import lru_cache
+from typing import List
 from typing import Iterable, Tuple, List
-
 _DATA_FILE = os.path.join(os.path.dirname(__file__), "russia.json")
 
 

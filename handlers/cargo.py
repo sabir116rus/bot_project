@@ -77,6 +77,16 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
 
 async def process_region_from(message: types.Message, state: FSMContext):
     text = message.text.strip()
+    if text not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+    await state.update_data(region_from=text)
+    cities = get_cities(text)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     data = await state.get_data()
     page = data.get("rf_page", 0)
 
@@ -156,6 +166,16 @@ async def process_city_from(message: types.Message, state: FSMContext):
 
 async def process_region_to(message: types.Message, state: FSMContext):
     text = message.text.strip()
+    if text not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+    await state.update_data(region_to=text)
+    cities = get_cities(text)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     data = await state.get_data()
     page = data.get("rt_page", 0)
 
