@@ -38,6 +38,29 @@ class ReplyKeyboardMarkup:
 
 aiogram_types_module.ReplyKeyboardMarkup = ReplyKeyboardMarkup
 
+class InlineKeyboardButton:
+    def __init__(self, text=None, callback_data=None):
+        self.text = text
+        self.callback_data = callback_data
+
+aiogram_types_module.InlineKeyboardButton = InlineKeyboardButton
+
+class InlineKeyboardMarkup:
+    def __init__(self, *args, **kwargs):
+        pass
+
+aiogram_types_module.InlineKeyboardMarkup = InlineKeyboardMarkup
+
+class CallbackQuery:
+    def __init__(self, data=""):
+        self.data = data
+        self.message = DummyMessage()
+
+    async def answer(self, *args, **kwargs):
+        pass
+
+aiogram_types_module.CallbackQuery = CallbackQuery
+
 class StateFilter:
     def __init__(self, state):
         self.state = state
