@@ -52,7 +52,7 @@ def init_db():
         weight INTEGER,
         body_type TEXT,
         direction TEXT,  -- 'ищу заказ' / 'попутный'
-        route_regions TEXT,  -- JSON-массив регионов
+        route_regions TEXT,  -- список регионов в текстовом виде
         comment TEXT,
         created_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id)
