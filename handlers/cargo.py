@@ -8,7 +8,12 @@ from datetime import datetime
 
 from db import get_connection
 from .common import get_main_menu, ask_and_store
-from utils import parse_date, get_current_user_id, format_date_for_display
+from utils import (
+    parse_date,
+    get_current_user_id,
+    format_date_for_display,
+    show_progress,
+)
 
 
 class CargoAddStates(StatesGroup):
@@ -40,7 +45,11 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
         return
 
     # Удаляем любое предыдущее сообщение (если требуется)
-    await message.answer("📦 Начнём добавление груза.\nОткуда (город):", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer(
+        "📦 Начнём добавление груза.\nОткуда (город):",
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
+    await show_progress(message, 1, 10)
     await state.set_state(CargoAddStates.city_from)
 
 
@@ -53,6 +62,7 @@ async def process_city_from(message: types.Message, state: FSMContext):
         "Регион отправления:",
         CargoAddStates.region_from
     )
+    await show_progress(message, 2, 10)
 
 
 async def process_region_from(message: types.Message, state: FSMContext):
@@ -63,6 +73,7 @@ async def process_region_from(message: types.Message, state: FSMContext):
         "Куда (город):",
         CargoAddStates.city_to
     )
+    await show_progress(message, 3, 10)
 
 
 async def process_city_to(message: types.Message, state: FSMContext):
@@ -73,6 +84,7 @@ async def process_city_to(message: types.Message, state: FSMContext):
         "Регион назначения:",
         CargoAddStates.region_to
     )
+    await show_progress(message, 4, 10)
 
 
 async def process_region_to(message: types.Message, state: FSMContext):
@@ -83,6 +95,7 @@ async def process_region_to(message: types.Message, state: FSMContext):
         "Дата отправления (ДД.MM.ГГГГ):",
         CargoAddStates.date_from
     )
+    await show_progress(message, 5, 10)
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
@@ -99,6 +112,7 @@ async def process_date_from(message: types.Message, state: FSMContext):
         "Дата прибытия (ДД.MM.ГГГГ):",
         CargoAddStates.date_to
     )
+    await show_progress(message, 6, 10)
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
@@ -124,6 +138,7 @@ async def process_date_to(message: types.Message, state: FSMContext):
         "Вес (в тоннах, цифрой):",
         CargoAddStates.weight
     )
+    await show_progress(message, 7, 10)
 
 
 async def process_weight(message: types.Message, state: FSMContext):
@@ -153,6 +168,7 @@ async def process_weight(message: types.Message, state: FSMContext):
         CargoAddStates.body_type,
         reply_markup=kb
     )
+    await show_progress(message, 8, 10)
 
 
 async def process_body_type(message: types.Message, state: FSMContext):
@@ -178,6 +194,7 @@ async def process_body_type(message: types.Message, state: FSMContext):
         CargoAddStates.is_local,
         reply_markup=kb
     )
+    await show_progress(message, 9, 10)
 
 
 async def process_is_local(message: types.Message, state: FSMContext):
@@ -194,6 +211,7 @@ async def process_is_local(message: types.Message, state: FSMContext):
         "Добавь комментарий (или напиши 'нет'):",
         CargoAddStates.comment
     )
+    await show_progress(message, 10, 10)
 
 
 async def process_comment(message: types.Message, state: FSMContext):
