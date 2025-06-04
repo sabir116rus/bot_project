@@ -26,7 +26,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     conn.close()
 
     if user:
-        # Привествуем возвращённого пользователя
+        # Приветствуем возвращённого пользователя
         name = user["name"]
         await message.answer(
             f"Добро пожаловать обратно, {name}!",
