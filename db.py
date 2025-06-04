@@ -1,9 +1,11 @@
 # db.py
 
 import sqlite3
-from datetime import datetime
+import os
 
-DB_PATH = "bot_database.sqlite3"
+# Always use path relative to this file so running the bot from any working
+# directory works correctly.
+DB_PATH = os.path.join(os.path.dirname(__file__), "bot_database.sqlite3")
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
