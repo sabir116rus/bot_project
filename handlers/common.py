@@ -63,10 +63,10 @@ async def ask_and_store(
     reply_markup: types.ReplyKeyboardMarkup | types.InlineKeyboardMarkup | None = None,
 ):
     """
-    Удаляет сообщение пользователя, предыдущее сообщение бота и строку
-    прогресса (если они были сохранены в ``FSMContext``), отправляет новый
-    вопрос ``text`` с необязательной клавиатурой и сохраняет его ``message_id``.
-    Затем переводит FSM в ``next_state``.
+    Удаляет сообщение пользователя и предыдущее сообщение бота (если оно было
+    сохранено в ``FSMContext``), отправляет новый вопрос ``text`` с
+    необязательной клавиатурой и сохраняет его ``message_id``. Затем переводит
+    FSM в ``next_state``.
     """
     # Удаляем сообщение пользователя
     try:
@@ -74,7 +74,7 @@ async def ask_and_store(
     except TelegramBadRequest:
         pass
 
-    # Удаляем предыдущие сообщения бота
+    # Удаляем предыдущий бот-вопрос
     data = await state.get_data()
     prev_bot_msg_id = data.get("last_bot_message_id")
     if prev_bot_msg_id:
@@ -82,14 +82,6 @@ async def ask_and_store(
             await message.chat.delete_message(prev_bot_msg_id)
         except Exception:
             pass  # Игнорируем, если уже удалено или нет прав
-
-    progress_msg_id = data.get("last_progress_message_id")
-    if progress_msg_id:
-        try:
-            await message.chat.delete_message(progress_msg_id)
-        except Exception:
-            pass
-        await state.update_data(last_progress_message_id=None)
 
     # Отправляем новый вопрос
     if reply_markup:

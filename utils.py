@@ -7,7 +7,6 @@ from functools import lru_cache
 import logging
 import re
 from aiogram import types
-from aiogram.fsm.context import FSMContext
 from db import get_connection
 from config import Config
 
@@ -71,22 +70,6 @@ def format_date_for_display(iso_date: str) -> str:
         return iso_date  # если парсинг не удался, возвращаем как есть
 
 
-
-async def show_progress(
-    message: types.Message,
-    state: FSMContext,
-    step: int,
-    total: int,
-) -> None:
-    """Send a progress bar and store its message id in ``state``."""
-    if total <= 0:
-        return
-
-    bar_length = 10
-    filled = int(bar_length * step / total)
-    bar = "█" * filled + "░" * (bar_length - filled)
-    bot_msg = await message.answer(f"Прогресс: {bar} {step}/{total}")
-    await state.update_data(last_progress_message_id=bot_msg.message_id)
 
 # ==== Cached helpers for unique cities ====
 

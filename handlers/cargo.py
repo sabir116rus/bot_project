@@ -19,7 +19,6 @@ from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
-    show_progress,
     log_user_action,
     get_unique_cities_from,
     get_unique_cities_to,
@@ -66,7 +65,6 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
     page = 0
     regions, _, has_next = get_regions_page(page)
     kb = create_paged_keyboard(regions, False, has_next)
-    await show_progress(message, state, 1, 10)
     await ask_and_store(
         message,
         state,
@@ -108,8 +106,6 @@ async def process_region_from(message: types.Message, state: FSMContext):
     cpage = 0
     cities, _, has_next = get_cities_page(text, cpage)
     kb = create_paged_keyboard(cities, False, has_next)
-
-    await show_progress(message, state, 2, 10)
     await ask_and_store(
         message,
         state,
@@ -148,8 +144,6 @@ async def process_city_from(message: types.Message, state: FSMContext):
     rpage = 0
     regions, _, has_next = get_regions_page(rpage)
     kb = create_paged_keyboard(regions, False, has_next)
-
-    await show_progress(message, state, 3, 10)
     await ask_and_store(
         message,
         state,
@@ -191,8 +185,6 @@ async def process_region_to(message: types.Message, state: FSMContext):
     cpage = 0
     cities, _, has_next = get_cities_page(text, cpage)
     kb = create_paged_keyboard(cities, False, has_next)
-
-    await show_progress(message, state, 4, 10)
     await ask_and_store(
         message,
         state,
@@ -227,7 +219,6 @@ async def process_city_to(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(city_to=text)
-    await show_progress(message, state, 5, 10)
     await ask_and_store(
         message,
         state,
@@ -251,7 +242,6 @@ async def process_date_from(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(date_from=parsed)
-    await show_progress(message, state, 6, 10)
     await ask_and_store(
         message,
         state,
@@ -284,7 +274,6 @@ async def process_date_to(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(date_to=parsed_to)
-    await show_progress(message, state, 7, 10)
     await ask_and_store(
         message,
         state,
@@ -349,7 +338,6 @@ async def process_weight(message: types.Message, state: FSMContext):
         resize_keyboard=True,
         one_time_keyboard=True
     )
-    await show_progress(message, state, 8, 10)
     await ask_and_store(
         message,
         state,
@@ -375,7 +363,6 @@ async def process_body_type(message: types.Message, state: FSMContext):
         resize_keyboard=True,
         one_time_keyboard=True
     )
-    await show_progress(message, state, 9, 10)
     await ask_and_store(
         message,
         state,
@@ -393,7 +380,6 @@ async def process_is_local(message: types.Message, state: FSMContext):
 
     is_local = 1 if "да" in text else 0
     await state.update_data(is_local=is_local)
-    await show_progress(message, state, 10, 10)
     await ask_and_store(
         message,
         state,
@@ -432,13 +418,6 @@ async def process_comment(message: types.Message, state: FSMContext):
             await message.chat.delete_message(last_bot_msg_id)
         except Exception:
             pass
-    progress_msg_id = bot_data.get("last_progress_message_id")
-    if progress_msg_id:
-        try:
-            await message.chat.delete_message(progress_msg_id)
-        except Exception:
-            pass
-    await state.update_data(last_progress_message_id=None)
 
     # Вставляем запись в БД
     with get_connection() as conn:
