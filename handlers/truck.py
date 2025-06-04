@@ -15,16 +15,11 @@ from utils import (
     get_current_user_id,
     format_date_for_display,
     show_progress,
-)
-
-from config import Config
-
-class TruckAddStates(StatesGroup):
     log_user_action,
     get_unique_truck_cities,
     clear_city_cache,
 )
-
+from config import Config
 
 class TruckAddStates(BaseStates):
     city          = State()
