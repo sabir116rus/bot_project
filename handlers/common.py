@@ -4,7 +4,6 @@
 from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
-from aiogram import types
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -15,7 +14,6 @@ from aiogram.types import (
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
-import math
 
 from utils import format_date_for_display
 

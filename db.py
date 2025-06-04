@@ -4,9 +4,8 @@ import sqlite3
 
 from config import Config
 
-# Allow overriding the database path in tests
-DB_PATH: str = Config.DB_PATH
-
+# Database file path can be overridden in tests via monkeypatching
+DB_PATH = Config.DB_PATH
 # Always use path relative to this file so running the bot from any working
 # directory works correctly. Path is now defined in Config.
 
