@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store
+from .common import get_main_menu, ask_and_store, show_search_results
 from utils import parse_date, get_current_user_id, format_date_for_display
 from config import Config
 
@@ -382,18 +382,7 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     if not rows:
         await message.answer("📬 По вашему запросу ТС не найдено.", reply_markup=get_main_menu())
     else:
-        text = "📋 Найденные ТС:\n\n"
-        for r in rows:
-            date_disp = format_date_for_display(r["date_from"])
-            text += (
-                f"ID: {r['id']}\n"
-                f"Владелец: {r['name']}\n"
-                f"{r['city']}, {r['region']}\n"
-                f"Дата доступно: {date_disp}\n"
-                f"Грузоподъёмность: {r['weight']} т, Кузов: {r['body_type']}\n"
-                f"Направление: {r['direction']}\n\n"
-            )
-        await message.answer(text, reply_markup=get_main_menu())
+        await show_search_results(message, rows)
 
     await state.clear()
 
