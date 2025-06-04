@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from datetime import datetime
+import re
 
 from aiogram import types
 from db import get_connection
@@ -65,3 +66,26 @@ def format_date_for_display(iso_date: str) -> str:
         return dt.strftime(Config.DATE_FORMAT)
     except Exception:
         return iso_date  # если парсинг не удался, возвращаем как есть
+
+
+def validate_weight(weight_str: str) -> tuple[bool, int]:
+    """Validate and convert weight string to integer tons.
+
+    The weight must be a positive integer between 1 and 1000 (tons).
+    Returns a tuple ``(is_valid, value)`` where ``value`` is 0 when invalid.
+    """
+    try:
+        weight = int(weight_str.strip())
+    except (TypeError, ValueError):
+        return False, 0
+    if 1 <= weight <= 1000:
+        return True, weight
+    return False, 0
+
+
+_PHONE_RE = re.compile(r"^\+?\d{11}$")
+
+
+def validate_phone(phone: str) -> bool:
+    """Return ``True`` if the phone number matches ``+?\d{11}``."""
+    return bool(_PHONE_RE.fullmatch(phone.strip()))
