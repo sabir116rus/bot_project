@@ -10,6 +10,7 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
 - **Truck management**: add a truck and search available trucks.
 - **Profile view** with "📋 Мой профиль" button.
 - **Progress bar** when filling long forms.
+- **Weight validation** ensures values are between 1 and 1000 tons.
 - **Common commands** `/help` and `/cancel`.
 
 ## Running the bot
