@@ -17,7 +17,12 @@ aiogram_types_module.Message = _DummyMessage
 sys.modules.setdefault("aiogram", aiogram_module)
 sys.modules.setdefault("aiogram.types", aiogram_types_module)
 
-from utils import parse_date, format_date_for_display
+from utils import (
+    parse_date,
+    format_date_for_display,
+    validate_weight,
+    validate_phone,
+)
 
 
 def test_parse_date_valid():
@@ -39,3 +44,27 @@ def test_format_date_for_display_with_time():
 
 def test_format_date_for_display_invalid():
     assert format_date_for_display("oops") == "oops"
+
+
+def test_validate_weight_valid():
+    assert validate_weight("15") == (True, 15)
+
+
+@pytest.mark.parametrize("val", ["0", "-1", "text", "1001"])
+def test_validate_weight_invalid(val):
+    ok, weight = validate_weight(val)
+    assert not ok
+    assert weight == 0
+
+
+def test_validate_phone_valid():
+    assert validate_phone("+79991234567")
+    assert validate_phone("79991234567")
+
+
+@pytest.mark.parametrize(
+    "phone",
+    ["12345", "+1234abc5678", "7999123456", "++79991234567"],
+)
+def test_validate_phone_invalid(phone):
+    assert not validate_phone(phone)
