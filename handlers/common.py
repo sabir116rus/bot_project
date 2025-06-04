@@ -36,6 +36,25 @@ def get_main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def create_paged_keyboard(
+    items: list[str], has_prev: bool, has_next: bool
+) -> ReplyKeyboardMarkup:
+    """Return a reply keyboard with paging controls."""
+    rows = [[KeyboardButton(text=i)] for i in items]
+    nav_row: list[KeyboardButton] = []
+    if has_prev:
+        nav_row.append(KeyboardButton(text="Назад"))
+    if has_next:
+        nav_row.append(KeyboardButton(text="Вперёд"))
+    if nav_row:
+        rows.append(nav_row)
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
 async def ask_and_store(
     message: types.Message,
     state: FSMContext,

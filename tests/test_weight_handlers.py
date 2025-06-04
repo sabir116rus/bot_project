@@ -109,6 +109,7 @@ async def dummy_show_search_results(*args, **kwargs):
 common_stub.get_main_menu = lambda: None
 common_stub.ask_and_store = dummy_ask_and_store
 common_stub.show_search_results = dummy_show_search_results
+common_stub.create_paged_keyboard = lambda *a, **k: None
 sys.modules["handlers.common"] = common_stub
 
 # Import cargo and truck modules manually

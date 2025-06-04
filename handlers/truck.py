@@ -9,7 +9,12 @@ from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store, show_search_results
+from .common import (
+    get_main_menu,
+    ask_and_store,
+    show_search_results,
+    create_paged_keyboard,
+)
 from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
@@ -22,7 +27,12 @@ from utils import (
     validate_weight,
 )
 from config import Config
-from locations import get_regions, get_cities
+from locations import (
+    get_regions,
+    get_cities,
+    get_regions_page,
+    get_cities_page,
+)
 
 class TruckAddStates(BaseStates):
     region        = State()
@@ -50,34 +60,49 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    regions = get_regions()
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=r)] for r in regions],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
+    page = 0
+    regions, _, has_next = get_regions_page(page)
+    kb = create_paged_keyboard(regions, False, has_next)
     await message.answer(
         "🚛 Начнём добавление ТС.\nВыберите регион стоянки:",
         reply_markup=kb,
     )
     await show_progress(message, 1, 9)
     await state.set_state(TruckAddStates.region)
+    await state.update_data(r_page=page)
 
 
 async def process_region(message: types.Message, state: FSMContext):
-    region = message.text.strip()
-    if region not in get_regions():
+    text = message.text.strip()
+    data = await state.get_data()
+    page = data.get("r_page", 0)
+
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        regions, has_prev, has_next = get_regions_page(page)
+        kb = create_paged_keyboard(regions, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "Выберите регион стоянки:",
+            TruckAddStates.region,
+            reply_markup=kb,
+        )
+        await state.update_data(r_page=page)
+        return
+
+    if text not in get_regions():
         await message.answer("Пожалуйста, выбери регион из списка.")
         return
 
-    await state.update_data(region=region)
+    await state.update_data(region=text)
 
-    cities = get_cities(region)
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=c)] for c in cities],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
+    cpage = 0
+    cities, _, has_next = get_cities_page(text, cpage)
+    kb = create_paged_keyboard(cities, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -85,11 +110,34 @@ async def process_region(message: types.Message, state: FSMContext):
         TruckAddStates.city,
         reply_markup=kb,
     )
+    await state.update_data(c_page=cpage)
     await show_progress(message, 2, 9)
 
 
 async def process_city(message: types.Message, state: FSMContext):
-    await state.update_data(city=message.text.strip())
+    text = message.text.strip()
+    data = await state.get_data()
+    page = data.get("c_page", 0)
+    region = data.get("region")
+
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        cities, has_prev, has_next = get_cities_page(region, page)
+        kb = create_paged_keyboard(cities, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "В каком городе стоит ТС?",
+            TruckAddStates.city,
+            reply_markup=kb,
+        )
+        await state.update_data(c_page=page)
+        return
+
+    await state.update_data(city=text)
     await ask_and_store(
         message,
         state,
