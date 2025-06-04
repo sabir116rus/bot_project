@@ -2,8 +2,8 @@
 
 from contextlib import contextmanager
 from datetime import datetime
+import logging
 import re
-
 from aiogram import types
 from db import get_connection
 from config import Config
@@ -68,6 +68,13 @@ def format_date_for_display(iso_date: str) -> str:
         return iso_date  # если парсинг не удался, возвращаем как есть
 
 
+def log_user_action(user_id: int, action: str, details: str = "") -> None:
+    """Log a user action for auditing purposes."""
+    if details:
+        logging.info("user=%s action=%s details=%s", user_id, action, details)
+    else:
+        logging.info("user=%s action=%s", user_id, action)
+
 def validate_weight(weight_str: str) -> tuple[bool, int]:
     """Validate and convert weight string to integer tons.
 
@@ -89,3 +96,4 @@ _PHONE_RE = re.compile(r"^\+?\d{11}$")
 def validate_phone(phone: str) -> bool:
     """Return ``True`` if the phone number matches ``+?\d{11}``."""
     return bool(_PHONE_RE.fullmatch(phone.strip()))
+
