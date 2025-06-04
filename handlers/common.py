@@ -16,7 +16,7 @@ from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
 
 from utils import format_date_for_display
-
+import logging
 
 def get_main_menu() -> ReplyKeyboardMarkup:
     """
@@ -144,5 +144,11 @@ async def show_search_results(message: types.Message, rows, page: int = 0, per_p
             buttons.append(InlineKeyboardButton(text="\u0412\u043f\u0435\u0440\u0451\u0434", callback_data=f"page:{page+1}"))
         markup = InlineKeyboardMarkup(inline_keyboard=[buttons])
 
-    await message.answer(text, reply_markup=markup or get_main_menu())
+    try:
+        await message.answer(text, reply_markup=markup or get_main_menu())
+    except UnicodeEncodeError as e:
+        logging.exception("Encoding error with text: %r", text)
+        await message.answer("Произошла ошибка при выводе текста.")
+
+
 
