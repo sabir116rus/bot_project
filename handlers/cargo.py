@@ -19,13 +19,14 @@ from utils import (
     get_unique_cities_to,
     clear_city_cache,
 )
+from locations import get_regions, get_cities
 from config import Config
 
 class CargoAddStates(BaseStates):
-    city_from    = State()
     region_from  = State()
-    city_to      = State()
+    city_from    = State()
     region_to    = State()
+    city_to      = State()
     date_from    = State()
     date_to      = State()
     weight       = State()
@@ -50,50 +51,92 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
         return
 
     # Удаляем любое предыдущее сообщение (если требуется)
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     await message.answer(
-        "📦 Начнём добавление груза.\nОткуда (город):",
-        reply_markup=types.ReplyKeyboardRemove(),
+        "📦 Начнём добавление груза.\nВыбери регион отправления:",
+        reply_markup=kb,
     )
     await show_progress(message, 1, 10)
-    await state.set_state(CargoAddStates.city_from)
+    await state.set_state(CargoAddStates.region_from)
+
+
+async def process_region_from(message: types.Message, state: FSMContext):
+    region = message.text.strip()
+    if region not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+
+    await state.update_data(region_from=region)
+
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+    await ask_and_store(
+        message,
+        state,
+        "Откуда (город):",
+        CargoAddStates.city_from,
+        reply_markup=kb,
+    )
+    await show_progress(message, 2, 10)
 
 
 async def process_city_from(message: types.Message, state: FSMContext):
     await state.update_data(city_from=message.text.strip())
 
-    await ask_and_store(
-        message,
-        state,
-        "Регион отправления:",
-        CargoAddStates.region_from
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
     )
-    await show_progress(message, 2, 10)
 
-
-async def process_region_from(message: types.Message, state: FSMContext):
-    await state.update_data(region_from=message.text.strip())
-    await ask_and_store(
-        message,
-        state,
-        "Куда (город):",
-        CargoAddStates.city_to
-    )
-    await show_progress(message, 3, 10)
-
-
-async def process_city_to(message: types.Message, state: FSMContext):
-    await state.update_data(city_to=message.text.strip())
     await ask_and_store(
         message,
         state,
         "Регион назначения:",
-        CargoAddStates.region_to
+        CargoAddStates.region_to,
+        reply_markup=kb,
+    )
+    await show_progress(message, 3, 10)
+
+
+async def process_region_to(message: types.Message, state: FSMContext):
+    region = message.text.strip()
+    if region not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+
+    await state.update_data(region_to=region)
+
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+    await ask_and_store(
+        message,
+        state,
+        "Куда (город):",
+        CargoAddStates.city_to,
+        reply_markup=kb,
     )
     await show_progress(message, 4, 10)
 
 
-async def process_region_to(message: types.Message, state: FSMContext):
-    await state.update_data(region_to=message.text.strip())
+async def process_city_to(message: types.Message, state: FSMContext):
+    await state.update_data(city_to=message.text.strip())
     await ask_and_store(
         message,
         state,
@@ -472,10 +515,10 @@ async def filter_date_to(message: types.Message, state: FSMContext):
 def register_cargo_handlers(dp: Dispatcher):
     # Добавление груза (осталось без изменений)
     dp.message.register(cmd_start_add_cargo, lambda m: m.text == "➕ Добавить груз")
-    dp.message.register(process_city_from,   StateFilter(CargoAddStates.city_from))
     dp.message.register(process_region_from, StateFilter(CargoAddStates.region_from))
-    dp.message.register(process_city_to,     StateFilter(CargoAddStates.city_to))
+    dp.message.register(process_city_from,   StateFilter(CargoAddStates.city_from))
     dp.message.register(process_region_to,   StateFilter(CargoAddStates.region_to))
+    dp.message.register(process_city_to,     StateFilter(CargoAddStates.city_to))
     dp.message.register(process_date_from,   StateFilter(CargoAddStates.date_from))
     dp.message.register(process_date_to,     StateFilter(CargoAddStates.date_to))
     dp.message.register(process_weight,      StateFilter(CargoAddStates.weight))
