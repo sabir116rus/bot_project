@@ -3,20 +3,25 @@
 from aiogram import types, Dispatcher
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State
+from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store
+from .common import get_main_menu, ask_and_store, show_search_results
 from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
     show_progress,
+    log_user_action,
+    get_unique_cities_from,
+    get_unique_cities_to,
+    clear_city_cache,
 )
+from config import Config
 
-
-class CargoAddStates(StatesGroup):
+class CargoAddStates(BaseStates):
     city_from    = State()
     region_from  = State()
     city_to      = State()
@@ -29,7 +34,7 @@ class CargoAddStates(StatesGroup):
     comment      = State()
 
 
-class CargoSearchStates(StatesGroup):
+class CargoSearchStates(BaseStates):
     city_from    = State()
     city_to      = State()
     date_from    = State()
@@ -151,13 +156,10 @@ async def process_weight(message: types.Message, state: FSMContext):
 
     await state.update_data(weight=weight)
 
+    kb_buttons = [[types.KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
+    kb_buttons.append([types.KeyboardButton(text="Не важно")])
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [types.KeyboardButton(text="Рефрижератор")],
-            [types.KeyboardButton(text="Тент")],
-            [types.KeyboardButton(text="Изотерм")],
-            [types.KeyboardButton(text="Не важно")]
-        ],
+        keyboard=kb_buttons,
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -173,7 +175,7 @@ async def process_weight(message: types.Message, state: FSMContext):
 
 async def process_body_type(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    if text not in ("Рефрижератор", "Тент", "Изотерм", "Не важно"):
+    if text not in (Config.BODY_TYPES + ["Не важно"]):
         await message.answer("Пожалуйста, нажми одну из кнопок:\n«Рефрижератор», «Тент», «Изотерм» или «Не важно».")
         return
 
@@ -271,7 +273,10 @@ async def process_comment(message: types.Message, state: FSMContext):
         )
         conn.commit()
 
+    clear_city_cache()
+
     await message.answer("✅ Груз успешно добавлен!", reply_markup=get_main_menu())
+    log_user_action(user_id, "cargo_added")
     await state.clear()
 
 # ========== СЦЕНАРИЙ: ПОИСК ГРУЗА С КНОПКАМИ ==========
@@ -289,15 +294,8 @@ async def cmd_start_find_cargo(message: types.Message, state: FSMContext):
     # Удаляем сообщение-инициатор (нажатие "🔍 Найти груз")
     await message.delete()
 
-    # Получаем список уникальных городов отправления из таблицы cargo
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT city_from FROM cargo WHERE city_from IS NOT NULL")
-    rows = cursor.fetchall()
-    conn.close()
-
-    cities = [r["city_from"] for r in rows if r["city_from"].strip()]
-    cities.sort(key=lambda x: x.lower())  # отсортируем по алфавиту
+    # Получаем список уникальных городов отправления
+    cities = get_unique_cities_from()
 
     # Строим клавиатуру: каждая строка — один город, и внизу кнопка "Все"
     kb_buttons = [[types.KeyboardButton(text=city)] for city in cities]
@@ -336,16 +334,8 @@ async def filter_city_from(message: types.Message, state: FSMContext):
         except Exception:
             pass
 
-    # Теперь предлагаем выбрать город назначения аналогично
-    # Получаем уникальные города назначения из cargo
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT city_to FROM cargo WHERE city_to IS NOT NULL")
-    rows = cursor.fetchall()
-    conn.close()
-
-    to_cities = [r["city_to"] for r in rows if r["city_to"].strip()]
-    to_cities.sort(key=lambda x: x.lower())
+    # Теперь предлагаем выбрать город назначения
+    to_cities = get_unique_cities_to()
 
     kb_buttons = [[types.KeyboardButton(text=city)] for city in to_cities]
     kb_buttons.append([types.KeyboardButton(text="Все")])
@@ -429,6 +419,7 @@ async def filter_date_to(message: types.Message, state: FSMContext):
         await state.update_data(filter_date_to="нет")
 
     data = await state.get_data()
+    user_id = await get_current_user_id(message)
     fc_from = data.get("filter_city_from", "")
     fc_to = data.get("filter_city_to", "")
     fd_from = data.get("filter_date_from", "")
@@ -473,18 +464,9 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     if not rows:
         await message.answer("📬 По вашему запросу ничего не найдено.", reply_markup=get_main_menu())
     else:
-        text = "📋 Найденные грузы:\n\n"
-        for r in rows:
-            date_disp = format_date_for_display(r["date_from"])
-            text += (
-                f"ID: {r['id']}\n"
-                f"Владелец: {r['name']}\n"
-                f"{r['city_from']}, {r['region_from']} → {r['city_to']}, {r['region_to']}\n"
-                f"Дата отправления: {date_disp}\n"
-                f"Вес: {r['weight']} т, Кузов: {r['body_type']}\n\n"
-            )
-        await message.answer(text, reply_markup=get_main_menu())
+        await show_search_results(message, rows)
 
+    log_user_action(user_id, "cargo_search", f"results={len(rows)}")
     await state.clear()
 
 def register_cargo_handlers(dp: Dispatcher):
