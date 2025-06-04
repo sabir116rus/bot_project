@@ -8,7 +8,7 @@ from datetime import datetime
 
 from db import get_connection
 from .common import get_main_menu, ask_and_store
-from utils import parse_date, get_current_user_id, format_date_for_display
+from utils import parse_date, get_current_user_id, format_date_for_display, log_user_action
 
 
 class CargoAddStates(StatesGroup):
@@ -254,6 +254,7 @@ async def process_comment(message: types.Message, state: FSMContext):
         conn.commit()
 
     await message.answer("✅ Груз успешно добавлен!", reply_markup=get_main_menu())
+    log_user_action(user_id, "cargo_added")
     await state.clear()
 
 # ========== СЦЕНАРИЙ: ПОИСК ГРУЗА С КНОПКАМИ ==========
@@ -411,6 +412,7 @@ async def filter_date_to(message: types.Message, state: FSMContext):
         await state.update_data(filter_date_to="нет")
 
     data = await state.get_data()
+    user_id = await get_current_user_id(message)
     fc_from = data.get("filter_city_from", "")
     fc_to = data.get("filter_city_to", "")
     fd_from = data.get("filter_date_from", "")
@@ -467,6 +469,7 @@ async def filter_date_to(message: types.Message, state: FSMContext):
             )
         await message.answer(text, reply_markup=get_main_menu())
 
+    log_user_action(user_id, "cargo_search", f"results={len(rows)}")
     await state.clear()
 
 def register_cargo_handlers(dp: Dispatcher):

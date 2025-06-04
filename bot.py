@@ -21,7 +21,8 @@ API_TOKEN = os.getenv("API_TOKEN")
 
 async def main():
     try:
-        logging.basicConfig(level=logging.INFO)
+        if not logging.getLogger().hasHandlers():
+            logging.basicConfig(level=logging.INFO)
 
         # Инициализация БД
         from db import init_db

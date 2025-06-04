@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from datetime import datetime
+import logging
 
 from aiogram import types
 from db import get_connection
@@ -64,3 +65,11 @@ def format_date_for_display(iso_date: str) -> str:
         return dt.strftime("%d.%m.%Y")
     except Exception:
         return iso_date  # если парсинг не удался, возвращаем как есть
+
+
+def log_user_action(user_id: int, action: str, details: str = "") -> None:
+    """Log a user action for auditing purposes."""
+    if details:
+        logging.info("user=%s action=%s details=%s", user_id, action, details)
+    else:
+        logging.info("user=%s action=%s", user_id, action)
