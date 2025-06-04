@@ -9,6 +9,7 @@ from datetime import datetime
 from db import get_connection
 from .common import get_main_menu, ask_and_store
 from utils import parse_date, get_current_user_id, format_date_for_display
+from config import Config
 
 
 class CargoAddStates(StatesGroup):
@@ -136,13 +137,10 @@ async def process_weight(message: types.Message, state: FSMContext):
 
     await state.update_data(weight=weight)
 
+    kb_buttons = [[types.KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
+    kb_buttons.append([types.KeyboardButton(text="Не важно")])
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [types.KeyboardButton(text="Рефрижератор")],
-            [types.KeyboardButton(text="Тент")],
-            [types.KeyboardButton(text="Изотерм")],
-            [types.KeyboardButton(text="Не важно")]
-        ],
+        keyboard=kb_buttons,
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -157,7 +155,7 @@ async def process_weight(message: types.Message, state: FSMContext):
 
 async def process_body_type(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    if text not in ("Рефрижератор", "Тент", "Изотерм", "Не важно"):
+    if text not in (Config.BODY_TYPES + ["Не важно"]):
         await message.answer("Пожалуйста, нажми одну из кнопок:\n«Рефрижератор», «Тент», «Изотерм» или «Не важно».")
         return
 

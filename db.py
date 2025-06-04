@@ -1,14 +1,14 @@
 # db.py
 
 import sqlite3
-import os
+
+from config import Config
 
 # Always use path relative to this file so running the bot from any working
-# directory works correctly.
-DB_PATH = os.path.join(os.path.dirname(__file__), "bot_database.sqlite3")
+# directory works correctly. Path is now defined in Config.
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(Config.DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -65,4 +65,4 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
-    print("База данных инициализирована в", DB_PATH)
+    print("База данных инициализирована в", Config.DB_PATH)
