@@ -13,7 +13,8 @@ from handlers import (
     register_user_handlers,
     register_cargo_handlers,
     register_truck_handlers,
-    register_profile_handler
+    register_profile_handler,
+    register_common_handlers
 )
 
 load_dotenv()
@@ -36,6 +37,7 @@ async def main():
         register_cargo_handlers(dp)
         register_truck_handlers(dp)
         register_profile_handler(dp)
+        register_common_handlers(dp)
 
         # Запускаем поллинг
         await dp.start_polling(bot)
