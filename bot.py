@@ -27,6 +27,15 @@ async def main():
         from db import init_db
         init_db()
 
+        # Логируем базовую статистику
+        from metrics import get_bot_statistics
+        total_users, new_users = get_bot_statistics()
+        logging.info(
+            "Bot stats: total_users=%s, registered_last_24h=%s",
+            total_users,
+            new_users,
+        )
+
         # Создаём бота и диспетчер
         bot = Bot(token=API_TOKEN)
         dp = Dispatcher(storage=MemoryStorage())
