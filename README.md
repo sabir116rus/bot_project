@@ -32,6 +32,9 @@ python bot.py
 
 `API_TOKEN` is required by `bot.py` to authenticate with Telegram.
 
+Administrators are defined via the `ADMIN_IDS` environment variable which
+contains a comma separated list of Telegram user IDs.
+
 The SQLite database file is stored at `bot_database.sqlite3` in the project root (path defined in `Config.DB_PATH`).
 
 ## Available commands
@@ -39,6 +42,7 @@ The SQLite database file is stored at `bot_database.sqlite3` in the project root
 - `/start` – begin registration or open the main menu.
 - `/help` – show help message with available commands.
 - `/cancel` – cancel the current operation and return to the main menu.
+- `/admin` – open the admin panel (available for IDs listed in `ADMIN_IDS`).
 
 The bot also provides buttons to add/search cargo or trucks and to view your profile.
 
