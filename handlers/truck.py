@@ -30,6 +30,7 @@ from locations import (
     get_cities,
 )
 
+
 class TruckAddStates(BaseStates):
     region        = State()
     city          = State()
@@ -56,9 +57,13 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    page = 0
-    regions, _, has_next = get_regions_page(page)
-    kb = create_paged_keyboard(regions, False, has_next)
+    # Сразу показываем все регионы (без пагинации)
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=region)] for region in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
     await ask_and_store(
         message,
         state,
@@ -66,26 +71,23 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
         TruckAddStates.region,
         reply_markup=kb,
     )
-    await state.update_data(r_page=page)
 
 
 async def process_region(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    if text not in get_regions():
+    all_regions = get_regions()
+    if text not in all_regions:
         await message.answer("Пожалуйста, выбери регион из списка.")
         return
 
     await state.update_data(region=text)
+    # Показываем все города выбранного региона
     cities = get_cities(text)
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=c)] for c in cities],
+        keyboard=[[KeyboardButton(text=city)] for city in cities],
         resize_keyboard=True,
         one_time_keyboard=True,
     )
-
-    cpage = 0
-    cities, _, has_next = get_cities_page(text, cpage)
-    kb = create_paged_keyboard(cities, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -93,33 +95,25 @@ async def process_region(message: types.Message, state: FSMContext):
         TruckAddStates.city,
         reply_markup=kb,
     )
-    await state.update_data(c_page=cpage)
 
 
 async def process_city(message: types.Message, state: FSMContext):
     text = message.text.strip()
     data = await state.get_data()
-    page = data.get("c_page", 0)
     region = data.get("region")
+    if not region:
+        # Если state потерялся, просим начать заново
+        await message.answer("Попробуйте снова: выберите регион стоянки.")
+        await state.clear()
+        return
 
-    if text == "Вперёд":
-        page += 1
-    elif text == "Назад":
-        page = max(page - 1, 0)
-    if text in {"Вперёд", "Назад"}:
-        cities, has_prev, has_next = get_cities_page(region, page)
-        kb = create_paged_keyboard(cities, has_prev, has_next)
-        await ask_and_store(
-            message,
-            state,
-            "В каком городе стоит ТС?",
-            TruckAddStates.city,
-            reply_markup=kb,
-        )
-        await state.update_data(c_page=page)
+    cities = get_cities(region)
+    if text not in cities:
+        await message.answer("Пожалуйста, выбери город из списка.")
         return
 
     await state.update_data(city=text)
+    # Переходим к выбору даты доступности "с"
     await ask_and_store(
         message,
         state,
@@ -143,6 +137,7 @@ async def process_date_from(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(date_from=parsed)
+    # Запрашиваем дату доступности "по"
     await ask_and_store(
         message,
         state,
@@ -168,13 +163,13 @@ async def process_date_to(message: types.Message, state: FSMContext):
     data = await state.get_data()
     df_iso = data.get("date_from")
     dt_from = datetime.strptime(df_iso, "%Y-%m-%d") if df_iso else None
-
     dt_to = datetime.strptime(parsed_to, "%Y-%m-%d")
     if dt_from and dt_to < dt_from:
         await message.answer("Дата «по» не может быть раньше даты «с». Повторите ввод:")
         return
 
     await state.update_data(date_to=parsed_to)
+    # Запрашиваем грузоподъёмность
     await ask_and_store(
         message,
         state,
@@ -210,6 +205,7 @@ async def process_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
     if dt_from and dt_to < dt_from:
         await callback.answer("Неверная дата", show_alert=True)
         return
+
     await state.update_data(date_to=date_iso, calendar_field=None)
     await callback.message.delete()
     bot_msg = await callback.message.answer(
@@ -355,6 +351,7 @@ async def process_truck_comment(message: types.Message, state: FSMContext):
     log_user_action(user_id, "truck_added")
     await state.clear()
 
+
 # ========== СЦЕНАРИЙ: ПОИСК ТС С КНОПКАМИ ==========
 
 async def cmd_start_find_trucks(message: types.Message, state: FSMContext):
@@ -389,6 +386,7 @@ async def cmd_start_find_trucks(message: types.Message, state: FSMContext):
     await state.update_data(last_bot_message_id=bot_msg.message_id)
     await state.set_state(TruckSearchStates.city)
 
+
 async def filter_city(message: types.Message, state: FSMContext):
     """
     Обработчик выбора города (или 'Все') для поиска ТС.
@@ -420,6 +418,7 @@ async def filter_city(message: types.Message, state: FSMContext):
         calendar_next_markup=generate_calendar(include_skip=True),
     )
     await state.set_state(TruckSearchStates.date_from)
+
 
 async def filter_date_from_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
@@ -455,6 +454,7 @@ async def filter_date_from_truck(message: types.Message, state: FSMContext):
         calendar_next_markup=None,
     )
     await state.set_state(TruckSearchStates.date_to)
+
 
 async def filter_date_to_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
@@ -588,8 +588,9 @@ async def filter_date_to_cb(callback: types.CallbackQuery, state: FSMContext):
     log_user_action(user_id, "truck_search", f"results={len(rows)}")
     await state.clear()
 
+
 def register_truck_handlers(dp: Dispatcher):
-    # Добавление ТС (без изменений)
+    # Добавление ТС
     dp.message.register(cmd_start_add_truck, lambda m: m.text == "➕ Добавить ТС")
     dp.message.register(process_region,        StateFilter(TruckAddStates.region))
     dp.message.register(process_city,          StateFilter(TruckAddStates.city))
@@ -611,6 +612,7 @@ def register_truck_handlers(dp: Dispatcher):
     dp.message.register(process_route_regions, StateFilter(TruckAddStates.route_regions))
     dp.message.register(process_truck_comment, StateFilter(TruckAddStates.comment))
 
+    # Поиск ТС
     dp.message.register(cmd_start_find_trucks,       lambda m: m.text == "🔍 Найти ТС")
     dp.message.register(filter_city,                 StateFilter(TruckSearchStates.city))
     dp.message.register(filter_date_from_truck,      StateFilter(TruckSearchStates.date_from))
