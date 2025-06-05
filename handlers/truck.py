@@ -14,9 +14,9 @@ from .common import (
     ask_and_store,
     show_search_results,
 )
+
 from calendar_keyboard import generate_calendar, handle_calendar_callback
 from utils import (
-    parse_date,
     get_current_user_id,
     format_date_for_display,
     log_user_action,
@@ -24,7 +24,6 @@ from utils import (
     clear_city_cache,
     validate_weight,
 )
-from config import Config
 from locations import (
     get_regions,
     get_cities,
@@ -131,13 +130,14 @@ async def process_city(message: types.Message, state: FSMContext):
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
-    raw = message.text.strip()
-    parsed = parse_date(raw)
-    if not parsed:
-        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
+    ok = await parse_and_store_date(
+        message,
+        state,
+        "date_from",
+        "Неверный формат даты. Введите ДД.MM.ГГГГ:",
+    )
+    if not ok:
         return
-
-    await state.update_data(date_from=parsed)
     # Запрашиваем дату доступности "по"
     await ask_and_store(
         message,
@@ -156,21 +156,16 @@ async def process_date_from(message: types.Message, state: FSMContext):
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
-    raw = message.text.strip()
-    parsed_to = parse_date(raw)
-    if not parsed_to:
-        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
+    ok = await parse_and_store_date(
+        message,
+        state,
+        "date_to",
+        "Неверный формат даты. Введите ДД.MM.ГГГГ:",
+        compare_field="date_from",
+        compare_error="Дата «по» не может быть раньше даты «с». Повторите ввод:",
+    )
+    if not ok:
         return
-
-    data = await state.get_data()
-    df_iso = data.get("date_from")
-    dt_from = datetime.strptime(df_iso, "%Y-%m-%d") if df_iso else None
-    dt_to = datetime.strptime(parsed_to, "%Y-%m-%d")
-    if dt_from and dt_to < dt_from:
-        await message.answer("Дата «по» не может быть раньше даты «с». Повторите ввод:")
-        return
-
-    await state.update_data(date_to=parsed_to)
     # Запрашиваем грузоподъёмность
     await ask_and_store(
         message,
@@ -182,29 +177,14 @@ async def process_date_to(message: types.Message, state: FSMContext):
 
 async def process_weight(message: types.Message, state: FSMContext):
     """Store truck weight after validating the input."""
-    raw = message.text.strip()
-    ok, weight = validate_weight(raw)
-    if not ok:
-        await message.answer(
-            "Введи грузоподъёмность от 1 до 1000 тонн цифрой (например, 15):"
-        )
-        return
-
-    await state.update_data(weight=weight)
-
-    kb_buttons = [[KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
-    kb_buttons.append([KeyboardButton(text="Любой")])
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=kb_buttons,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    await ask_and_store(
+    await process_weight_step(
         message,
         state,
-        "Выбери тип кузова ТС:",
         TruckAddStates.body_type,
-        reply_markup=kb
+        "Выбери тип кузова ТС:",
+        "Любой",
+        "Введи грузоподъёмность от 1 до 1000 тонн цифрой (например, 15):",
+        validate_func=validate_weight,
     )
 
 
@@ -388,11 +368,14 @@ async def filter_city(message: types.Message, state: FSMContext):
 async def filter_date_from_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
-        parsed = parse_date(message.text.strip())
-        if not parsed:
-            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или «нет».")
+        ok = await parse_and_store_date(
+            message,
+            state,
+            "filter_date_from",
+            "Неверный формат. Введите ДД.MM.ГГГГ или «нет».",
+        )
+        if not ok:
             return
-        await state.update_data(filter_date_from=parsed)
     else:
         await state.update_data(filter_date_from="нет")
 
@@ -425,11 +408,14 @@ async def filter_date_from_truck(message: types.Message, state: FSMContext):
 async def filter_date_to_truck(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
-        parsed = parse_date(message.text.strip())
-        if not parsed:
-            await message.answer("Неверный формат. Введите ДД.MM.ГГГГ или «нет».")
+        ok = await parse_and_store_date(
+            message,
+            state,
+            "filter_date_to",
+            "Неверный формат. Введите ДД.MM.ГГГГ или «нет».",
+        )
+        if not ok:
             return
-        await state.update_data(filter_date_to=parsed)
     else:
         await state.update_data(filter_date_to="нет")
 
@@ -440,22 +426,18 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     fd_to = data.get("filter_date_to", "")
 
     # Составляем SQL-запрос с учётом фильтров
-    query = """
+    base_query = """
     SELECT t.id, u.name, t.city, t.region, t.date_from, t.weight, t.body_type, t.direction
     FROM trucks t
     JOIN users u ON t.user_id = u.id
     WHERE 1=1
     """
-    params = []
-    if fc != "все":
-        query += " AND lower(t.city) = ?"
-        params.append(fc)
-    if fd_from != "нет":
-        query += " AND date(t.date_from) >= date(?)"
-        params.append(fd_from)
-    if fd_to != "нет":
-        query += " AND date(t.date_from) <= date(?)"
-        params.append(fd_to)
+    filters = [
+        (fc if fc != "все" else None, " AND lower(t.city) = ?"),
+        (fd_from if fd_from != "нет" else None, " AND date(t.date_from) >= date(?)"),
+        (fd_to if fd_to != "нет" else None, " AND date(t.date_from) <= date(?)"),
+    ]
+    query, params = build_search_query(base_query, filters)
 
     conn = get_connection()
     cursor = conn.cursor()

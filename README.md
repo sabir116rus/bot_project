@@ -37,6 +37,8 @@ API_TOKEN=<your-telegram-token>
 ADMIN_IDS=257928102,135255067
 ```
 
+The bot will raise an error on startup if ``API_TOKEN`` is not provided.
+
 Alternatively you may export these variables in the shell before running
 ``bot.py``.
 

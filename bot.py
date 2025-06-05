@@ -20,6 +20,9 @@ from handlers import (
 
 load_dotenv()
 API_TOKEN = os.getenv("API_TOKEN")
+if not API_TOKEN:
+    logging.error("API_TOKEN environment variable is required")
+    raise RuntimeError("API_TOKEN environment variable is required")
 
 async def main():
     try:
