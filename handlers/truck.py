@@ -19,7 +19,6 @@ from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
-    show_progress,
     log_user_action,
     get_unique_truck_cities,
     clear_city_cache,
@@ -57,18 +56,17 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
         await message.answer("Сначала зарегистрируйся через /start.")
         return
 
-    regions = get_regions()
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=r)] for r in regions],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
-    await message.answer(
+    page = 0
+    regions, _, has_next = get_regions_page(page)
+    kb = create_paged_keyboard(regions, False, has_next)
+    await ask_and_store(
+        message,
+        state,
         "🚛 Начнём добавление ТС.\nВыберите регион стоянки:",
+        TruckAddStates.region,
         reply_markup=kb,
     )
-    await show_progress(message, 1, 9)
-    await state.set_state(TruckAddStates.region)
+    await state.update_data(r_page=page)
 
 
 async def process_region(message: types.Message, state: FSMContext):
@@ -84,6 +82,10 @@ async def process_region(message: types.Message, state: FSMContext):
         resize_keyboard=True,
         one_time_keyboard=True,
     )
+
+    cpage = 0
+    cities, _, has_next = get_cities_page(text, cpage)
+    kb = create_paged_keyboard(cities, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -91,11 +93,33 @@ async def process_region(message: types.Message, state: FSMContext):
         TruckAddStates.city,
         reply_markup=kb,
     )
-    await show_progress(message, 2, 9)
+    await state.update_data(c_page=cpage)
 
 
 async def process_city(message: types.Message, state: FSMContext):
-    await state.update_data(city=message.text.strip())
+    text = message.text.strip()
+    data = await state.get_data()
+    page = data.get("c_page", 0)
+    region = data.get("region")
+
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        cities, has_prev, has_next = get_cities_page(region, page)
+        kb = create_paged_keyboard(cities, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "В каком городе стоит ТС?",
+            TruckAddStates.city,
+            reply_markup=kb,
+        )
+        await state.update_data(c_page=page)
+        return
+
+    await state.update_data(city=text)
     await ask_and_store(
         message,
         state,
@@ -109,7 +133,6 @@ async def process_city(message: types.Message, state: FSMContext):
         calendar_next_text="Дата доступности (по):",
         calendar_next_markup=generate_calendar(),
     )
-    await show_progress(message, 3, 9)
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
@@ -133,7 +156,6 @@ async def process_date_from(message: types.Message, state: FSMContext):
         calendar_next_text="Грузоподъёмность (в тоннах):",
         calendar_next_markup=None,
     )
-    await show_progress(message, 4, 9)
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
@@ -160,7 +182,6 @@ async def process_date_to(message: types.Message, state: FSMContext):
         TruckAddStates.weight
     )
     await state.update_data(calendar_field=None)
-    await show_progress(message, 5, 9)
 
 
 async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
@@ -225,7 +246,6 @@ async def process_weight(message: types.Message, state: FSMContext):
         TruckAddStates.body_type,
         reply_markup=kb
     )
-    await show_progress(message, 6, 9)
 
 
 async def process_body_type(message: types.Message, state: FSMContext):
@@ -248,7 +268,6 @@ async def process_body_type(message: types.Message, state: FSMContext):
         TruckAddStates.direction,
         reply_markup=kb
     )
-    await show_progress(message, 7, 9)
 
 
 async def process_direction(message: types.Message, state: FSMContext):
@@ -264,7 +283,6 @@ async def process_direction(message: types.Message, state: FSMContext):
         "Перечисли через запятую регионы, где готов ехать (или 'нет'):",
         TruckAddStates.route_regions
     )
-    await show_progress(message, 8, 9)
 
 
 async def process_route_regions(message: types.Message, state: FSMContext):
@@ -277,7 +295,6 @@ async def process_route_regions(message: types.Message, state: FSMContext):
         "Добавь комментарий (или напиши 'нет'):",
         TruckAddStates.comment
     )
-    await show_progress(message, 9, 9)
 
 
 async def process_truck_comment(message: types.Message, state: FSMContext):

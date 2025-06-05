@@ -12,13 +12,13 @@ from .common import (
     get_main_menu,
     ask_and_store,
     show_search_results,
+
 )
 from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
     get_current_user_id,
     format_date_for_display,
-    show_progress,
     log_user_action,
     get_unique_cities_from,
     get_unique_cities_to,
@@ -60,18 +60,17 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
         return
 
     # Удаляем любое предыдущее сообщение (если требуется)
-    regions = get_regions()
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
-    await message.answer(
+    page = 0
+    regions, _, has_next = get_regions_page(page)
+    kb = create_paged_keyboard(regions, False, has_next)
+    await ask_and_store(
+        message,
+        state,
         "📦 Начнём добавление груза.\nВыбери регион отправления:",
+        CargoAddStates.region_from,
         reply_markup=kb,
     )
-    await show_progress(message, 1, 10)
-    await state.set_state(CargoAddStates.region_from)
+    await state.update_data(rf_page=page)
 
 
 async def process_region_from(message: types.Message, state: FSMContext):
@@ -86,7 +85,35 @@ async def process_region_from(message: types.Message, state: FSMContext):
         resize_keyboard=True,
         one_time_keyboard=True,
     )
+    data = await state.get_data()
+    page = data.get("rf_page", 0)
 
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        regions, has_prev, has_next = get_regions_page(page)
+        kb = create_paged_keyboard(regions, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "Выбери регион отправления:",
+            CargoAddStates.region_from,
+            reply_markup=kb,
+        )
+        await state.update_data(rf_page=page)
+        return
+
+    if text not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+
+    await state.update_data(region_from=text)
+
+    cpage = 0
+    cities, _, has_next = get_cities_page(text, cpage)
+    kb = create_paged_keyboard(cities, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -94,19 +121,37 @@ async def process_region_from(message: types.Message, state: FSMContext):
         CargoAddStates.city_from,
         reply_markup=kb,
     )
-    await show_progress(message, 2, 10)
+    await state.update_data(cf_page=cpage)
 
 
 async def process_city_from(message: types.Message, state: FSMContext):
-    await state.update_data(city_from=message.text.strip())
+    text = message.text.strip()
+    data = await state.get_data()
+    page = data.get("cf_page", 0)
+    region = data.get("region_from")
 
-    regions = get_regions()
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        cities, has_prev, has_next = get_cities_page(region, page)
+        kb = create_paged_keyboard(cities, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "Откуда (город):",
+            CargoAddStates.city_from,
+            reply_markup=kb,
+        )
+        await state.update_data(cf_page=page)
+        return
 
+    await state.update_data(city_from=text)
+
+    rpage = 0
+    regions, _, has_next = get_regions_page(rpage)
+    kb = create_paged_keyboard(regions, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -114,7 +159,7 @@ async def process_city_from(message: types.Message, state: FSMContext):
         CargoAddStates.region_to,
         reply_markup=kb,
     )
-    await show_progress(message, 3, 10)
+    await state.update_data(rt_page=rpage)
 
 
 async def process_region_to(message: types.Message, state: FSMContext):
@@ -129,7 +174,35 @@ async def process_region_to(message: types.Message, state: FSMContext):
         resize_keyboard=True,
         one_time_keyboard=True,
     )
+    data = await state.get_data()
+    page = data.get("rt_page", 0)
 
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        regions, has_prev, has_next = get_regions_page(page)
+        kb = create_paged_keyboard(regions, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "Регион назначения:",
+            CargoAddStates.region_to,
+            reply_markup=kb,
+        )
+        await state.update_data(rt_page=page)
+        return
+
+    if text not in get_regions():
+        await message.answer("Пожалуйста, выбери регион из списка.")
+        return
+
+    await state.update_data(region_to=text)
+
+    cpage = 0
+    cities, _, has_next = get_cities_page(text, cpage)
+    kb = create_paged_keyboard(cities, False, has_next)
     await ask_and_store(
         message,
         state,
@@ -137,11 +210,33 @@ async def process_region_to(message: types.Message, state: FSMContext):
         CargoAddStates.city_to,
         reply_markup=kb,
     )
-    await show_progress(message, 4, 10)
+    await state.update_data(ct_page=cpage)
 
 
 async def process_city_to(message: types.Message, state: FSMContext):
-    await state.update_data(city_to=message.text.strip())
+    text = message.text.strip()
+    data = await state.get_data()
+    page = data.get("ct_page", 0)
+    region = data.get("region_to")
+
+    if text == "Вперёд":
+        page += 1
+    elif text == "Назад":
+        page = max(page - 1, 0)
+    if text in {"Вперёд", "Назад"}:
+        cities, has_prev, has_next = get_cities_page(region, page)
+        kb = create_paged_keyboard(cities, has_prev, has_next)
+        await ask_and_store(
+            message,
+            state,
+            "Куда (город):",
+            CargoAddStates.city_to,
+            reply_markup=kb,
+        )
+        await state.update_data(ct_page=page)
+        return
+
+    await state.update_data(city_to=text)
     await ask_and_store(
         message,
         state,
@@ -155,7 +250,6 @@ async def process_city_to(message: types.Message, state: FSMContext):
         calendar_next_text="Дата прибытия:",
         calendar_next_markup=generate_calendar(),
     )
-    await show_progress(message, 5, 10)
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
@@ -179,7 +273,6 @@ async def process_date_from(message: types.Message, state: FSMContext):
         calendar_next_text="Вес (в тоннах, цифрой):",
         calendar_next_markup=None,
     )
-    await show_progress(message, 6, 10)
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
@@ -206,7 +299,6 @@ async def process_date_to(message: types.Message, state: FSMContext):
         CargoAddStates.weight
     )
     await state.update_data(calendar_field=None)
-    await show_progress(message, 7, 10)
 
 
 async def process_date_from_cb(callback: types.CallbackQuery, state: FSMContext):
@@ -271,7 +363,6 @@ async def process_weight(message: types.Message, state: FSMContext):
         CargoAddStates.body_type,
         reply_markup=kb
     )
-    await show_progress(message, 8, 10)
 
 
 async def process_body_type(message: types.Message, state: FSMContext):
@@ -297,7 +388,6 @@ async def process_body_type(message: types.Message, state: FSMContext):
         CargoAddStates.is_local,
         reply_markup=kb
     )
-    await show_progress(message, 9, 10)
 
 
 async def process_is_local(message: types.Message, state: FSMContext):
@@ -314,7 +404,6 @@ async def process_is_local(message: types.Message, state: FSMContext):
         "Добавь комментарий (или напиши 'нет'):",
         CargoAddStates.comment
     )
-    await show_progress(message, 10, 10)
 
 
 async def process_comment(message: types.Message, state: FSMContext):
@@ -339,7 +428,7 @@ async def process_comment(message: types.Message, state: FSMContext):
 
     # Удаляем сообщение пользователя (с комментарием)
     await message.delete()
-    # Удаляем последний бот-вопрос
+    # Удаляем последний бот-вопрос и прогресс
     bot_data = await state.get_data()
     last_bot_msg_id = bot_data.get("last_bot_message_id")
     if last_bot_msg_id:

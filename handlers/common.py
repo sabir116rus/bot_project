@@ -36,6 +36,25 @@ def get_main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def create_paged_keyboard(
+    items: list[str], has_prev: bool, has_next: bool
+) -> ReplyKeyboardMarkup:
+    """Return a reply keyboard with paging controls."""
+    rows = [[KeyboardButton(text=i)] for i in items]
+    nav_row: list[KeyboardButton] = []
+    if has_prev:
+        nav_row.append(KeyboardButton(text="Назад"))
+    if has_next:
+        nav_row.append(KeyboardButton(text="Вперёд"))
+    if nav_row:
+        rows.append(nav_row)
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
 async def ask_and_store(
     message: types.Message,
     state: FSMContext,
@@ -44,9 +63,10 @@ async def ask_and_store(
     reply_markup: types.ReplyKeyboardMarkup | types.InlineKeyboardMarkup | None = None,
 ):
     """
-    Удаляет сообщение пользователя и удаляет предыдущий бот-вопрос (если он был сохранён в FSMContext),
-    отправляет новый вопрос (text) с необязательным reply_markup и сохраняет его message_id.
-    Затем переводит FSM в next_state.
+    Удаляет сообщение пользователя и предыдущее сообщение бота (если оно было
+    сохранено в ``FSMContext``), отправляет новый вопрос ``text`` с
+    необязательной клавиатурой и сохраняет его ``message_id``. Затем переводит
+    FSM в ``next_state``.
     """
     # Удаляем сообщение пользователя
     try:

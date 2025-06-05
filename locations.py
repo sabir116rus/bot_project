@@ -38,5 +38,3 @@ def get_cities(region: str) -> list[str]:
     """Return the full sorted list of cities for ``region``."""
     mapping = _load_mapping()
     return mapping.get(region, [])
-
-
