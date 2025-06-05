@@ -4,10 +4,14 @@ from aiogram import types, Dispatcher
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
-from states import BaseStates
+from states import BaseStates, CargoEditStates
 from datetime import datetime
 
-from db import get_connection
+from db import (
+    get_connection,
+    update_cargo_weight,
+    delete_cargo,
+)
 from .common import (
     get_main_menu,
     ask_and_store,
@@ -560,6 +564,41 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+# ========== СЦЕНАРИЙ: РЕДАКТИРОВАНИЕ/УДАЛЕНИЕ ГРУЗА ==========
+
+async def handle_edit_cargo(callback: types.CallbackQuery, state: FSMContext):
+    """Start cargo weight editing by asking for a new value."""
+    cargo_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_cargo_id=cargo_id)
+    await callback.message.answer("Новый вес (тонны):")
+    await state.set_state(CargoEditStates.weight)
+    await callback.answer()
+
+
+async def process_edit_weight(message: types.Message, state: FSMContext):
+    """Validate and store new weight for cargo entry."""
+    ok, weight = validate_weight(message.text)
+    if not ok:
+        await message.answer("Введите число от 1 до 1000:")
+        return
+    data = await state.get_data()
+    cid = data.get("edit_cargo_id")
+    if cid:
+        update_cargo_weight(cid, weight)
+        clear_city_cache()
+    await message.answer("Запись обновлена.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def handle_delete_cargo(callback: types.CallbackQuery):
+    """Delete cargo entry and notify the user."""
+    cargo_id = int(callback.data.split(":")[1])
+    delete_cargo(cargo_id)
+    clear_city_cache()
+    await callback.answer("Удалено")
+    await callback.message.delete()
+
+
 
 
 def register_cargo_handlers(dp: Dispatcher):
@@ -601,4 +640,18 @@ def register_cargo_handlers(dp: Dispatcher):
         handle_calendar_callback,
         StateFilter(CargoSearchStates.date_to),
         lambda c: c.data.startswith("cal:")
+    )
+
+    # Редактирование и удаление
+    dp.callback_query.register(
+        handle_edit_cargo,
+        lambda c: c.data.startswith("edit_cargo:"),
+    )
+    dp.callback_query.register(
+        handle_delete_cargo,
+        lambda c: c.data.startswith("del_cargo:"),
+    )
+    dp.message.register(
+        process_edit_weight,
+        StateFilter(CargoEditStates.weight),
     )
