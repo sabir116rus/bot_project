@@ -12,7 +12,7 @@ from .common import (
     get_main_menu,
     ask_and_store,
     show_search_results,
-    create_paged_keyboard,
+
 )
 from calendar_keyboard import generate_calendar
 from utils import (
@@ -28,8 +28,6 @@ from utils import (
 from locations import (
     get_regions,
     get_cities,
-    get_regions_page,
-    get_cities_page,
 )
 from config import Config
 

@@ -13,7 +13,6 @@ from .common import (
     get_main_menu,
     ask_and_store,
     show_search_results,
-    create_paged_keyboard,
 )
 from calendar_keyboard import generate_calendar
 from utils import (
@@ -29,8 +28,6 @@ from config import Config
 from locations import (
     get_regions,
     get_cities,
-    get_regions_page,
-    get_cities_page,
 )
 
 class TruckAddStates(BaseStates):
@@ -74,26 +71,6 @@ async def cmd_start_add_truck(message: types.Message, state: FSMContext):
 
 async def process_region(message: types.Message, state: FSMContext):
     text = message.text.strip()
-    data = await state.get_data()
-    page = data.get("r_page", 0)
-
-    if text == "Вперёд":
-        page += 1
-    elif text == "Назад":
-        page = max(page - 1, 0)
-    if text in {"Вперёд", "Назад"}:
-        regions, has_prev, has_next = get_regions_page(page)
-        kb = create_paged_keyboard(regions, has_prev, has_next)
-        await ask_and_store(
-            message,
-            state,
-            "Выберите регион стоянки:",
-            TruckAddStates.region,
-            reply_markup=kb,
-        )
-        await state.update_data(r_page=page)
-        return
-
     if text not in get_regions():
         await message.answer("Пожалуйста, выбери регион из списка.")
         return

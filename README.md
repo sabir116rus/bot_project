@@ -11,10 +11,8 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
 - **Profile view** with "📋 Мой профиль" button.
 - **Weight validation** ensures values are between 1 and 1000 tons.
 - **Inline calendar** for selecting dates when adding or searching cargo and trucks.
-- **Extensive region and city list** loaded from `russia.json` when adding
-  cargo or trucks.
-- **Paged location selection** when adding cargo or trucks using data from
-  `russia.json`.
+- **Extensive region and city list** loaded from `russia.json`. When adding
+  cargo or trucks the bot shows all regions and cities at once without paging.
 - **Common commands** `/help` and `/cancel`.
 
 ## Running the bot
