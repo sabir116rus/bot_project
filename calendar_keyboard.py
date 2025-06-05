@@ -120,7 +120,7 @@ async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMCont
         data = await state.get_data()
         include_skip = data.get("calendar_include_skip", False)
         markup = generate_calendar(year, month, include_skip=include_skip)
-        await callback.message.edit_reply_markup(markup)
+        await callback.message.edit_reply_markup(reply_markup=markup)
         await callback.answer()
         return
 
