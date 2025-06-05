@@ -1,4 +1,4 @@
-# bot.py
+"""Telegram bot entry point and handler registration."""
 
 import asyncio
 import logging

@@ -1,4 +1,4 @@
-# handlers/profile.py
+"""Handlers showing user profile information."""
 
 from aiogram import types, Dispatcher
 from aiogram.filters import StateFilter

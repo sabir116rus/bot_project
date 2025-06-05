@@ -1,4 +1,4 @@
-# utils.py
+"""Various utility helpers used across the bot."""
 
 from contextlib import contextmanager
 from datetime import datetime

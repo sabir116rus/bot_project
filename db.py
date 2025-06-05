@@ -1,4 +1,4 @@
-# db.py
+"""SQLite database helpers used by the bot."""
 
 import sqlite3
 

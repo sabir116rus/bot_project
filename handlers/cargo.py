@@ -1,4 +1,4 @@
-# handlers/cargo.py
+"""Handlers related to cargo addition and search workflows."""
 
 from aiogram import types, Dispatcher
 from aiogram.filters import StateFilter

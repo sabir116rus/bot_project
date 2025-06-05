@@ -1,3 +1,5 @@
+"""Centralized configuration constants for the bot."""
+
 import os
 
 class Config:
