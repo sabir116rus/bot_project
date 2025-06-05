@@ -47,23 +47,23 @@ def generate_calendar(
     rows.append(
         [
             types.InlineKeyboardButton(
-                "\u00ab",
+                text="\u00ab",
                 callback_data=f"cal:prev_y:{year}-{month}",
             ),
             types.InlineKeyboardButton(
-                "<",
+                text="<",
                 callback_data=f"cal:prev_m:{year}-{month}",
             ),
             types.InlineKeyboardButton(
-                f"{MONTHS_RU[month]} {year}",
+                text=f"{MONTHS_RU[month]} {year}",
                 callback_data="ignore",
             ),
             types.InlineKeyboardButton(
-                ">",
+                text=">",
                 callback_data=f"cal:next_m:{year}-{month}",
             ),
             types.InlineKeyboardButton(
-                "\u00bb",
+                text="\u00bb",
                 callback_data=f"cal:next_y:{year}-{month}",
             ),
         ]
