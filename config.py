@@ -23,4 +23,11 @@ class Config:
         "Ищу заказ",
         "Попутный путь",
     ]
+
+    # Telegram IDs that have administrator rights
+    ADMIN_IDS = [
+        int(x)
+        for x in os.getenv("ADMIN_IDS", "").split(",")
+        if x.strip().isdigit()
+    ]
     
