@@ -30,6 +30,7 @@ from locations import (
     get_regions,
     get_cities,
 )
+from config import Config
 
 
 class CargoAddStates(BaseStates):
