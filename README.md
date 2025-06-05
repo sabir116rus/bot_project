@@ -8,7 +8,7 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
   (11 digits, optionally starting with `+`).
 - **Cargo management**: add new cargo entries and search existing ones.
 - **Truck management**: add a truck and search available trucks.
-- **Profile view** with "📋 Мой профиль" button.
+- **Profile view** with "📋 Мой профиль" button that lists your cargo and trucks.
 - **Weight validation** ensures values are between 1 and 1000 tons.
 - **Inline calendar** with month and year navigation for selecting dates when adding or searching cargo and trucks.
 - **Extensive region and city list** loaded from `russia.json`. When adding
