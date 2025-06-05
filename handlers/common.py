@@ -1,5 +1,4 @@
-# handlers/common.py
-
+"""Shared utility handlers and helper functions."""
 
 from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton

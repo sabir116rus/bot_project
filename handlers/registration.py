@@ -1,4 +1,4 @@
-# handlers/registration.py
+"""User registration conversation handlers."""
 
 from aiogram import types, Dispatcher
 from aiogram.filters import Command, StateFilter

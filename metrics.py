@@ -1,4 +1,4 @@
-# metrics.py
+"""Statistics helpers for bot usage metrics."""
 
 from utils import db_cursor
 

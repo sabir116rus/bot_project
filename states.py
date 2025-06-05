@@ -1,3 +1,5 @@
+"""Finite state machine definitions for user interactions."""
+
 from aiogram.fsm.state import State, StatesGroup
 
 

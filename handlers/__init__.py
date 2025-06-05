@@ -1,4 +1,4 @@
-# handlers/__init__.py
+"""Aggregate registration functions for all bot handlers."""
 
 from .registration import register_user_handlers
 from .cargo import register_cargo_handlers

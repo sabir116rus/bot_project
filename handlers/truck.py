@@ -1,4 +1,4 @@
-# handlers/truck.py
+"""Handlers for truck addition and search workflows."""
 
 from aiogram import types, Dispatcher
 from aiogram.types import KeyboardButton
