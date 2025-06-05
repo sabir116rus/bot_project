@@ -110,6 +110,38 @@ common_stub.get_main_menu = lambda: None
 common_stub.ask_and_store = dummy_ask_and_store
 common_stub.show_search_results = dummy_show_search_results
 common_stub.create_paged_keyboard = lambda *a, **k: None
+async def dummy_process_weight_step(
+    message,
+    state,
+    next_state,
+    prompt,
+    any_option,
+    invalid_text,
+    *,
+    validate_func,
+):
+    raw = message.text.strip()
+    ok, weight = validate_func(raw)
+    if not ok:
+        await message.answer(invalid_text)
+        return
+    await state.update_data(weight=weight)
+    state.state = next_state
+    message.stored = prompt
+
+async def dummy_parse_and_store_date(
+    message,
+    state,
+    field_name,
+    error_text,
+    *,
+    compare_field=None,
+    compare_error="",
+):
+    await state.update_data(**{field_name: "2024-01-01"})
+    return True
+common_stub.process_weight_step = dummy_process_weight_step
+common_stub.parse_and_store_date = dummy_parse_and_store_date
 sys.modules["handlers.common"] = common_stub
 
 # Import cargo and truck modules manually
