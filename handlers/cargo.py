@@ -8,7 +8,11 @@ from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import get_main_menu, ask_and_store, show_search_results
+from .common import (
+    get_main_menu,
+    ask_and_store,
+    show_search_results,
+)
 from calendar_keyboard import generate_calendar
 from utils import (
     parse_date,
@@ -21,7 +25,10 @@ from utils import (
     clear_city_cache,
     validate_weight,
 )
-from locations import get_regions, get_cities
+from locations import (
+    get_regions,
+    get_cities,
+)
 from config import Config
 
 class CargoAddStates(BaseStates):
@@ -68,14 +75,12 @@ async def cmd_start_add_cargo(message: types.Message, state: FSMContext):
 
 
 async def process_region_from(message: types.Message, state: FSMContext):
-    region = message.text.strip()
-    if region not in get_regions():
+    text = message.text.strip()
+    if text not in get_regions():
         await message.answer("Пожалуйста, выбери регион из списка.")
         return
-
-    await state.update_data(region_from=region)
-
-    cities = get_cities(region)
+    await state.update_data(region_from=text)
+    cities = get_cities(text)
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text=c)] for c in cities],
         resize_keyboard=True,
@@ -113,14 +118,12 @@ async def process_city_from(message: types.Message, state: FSMContext):
 
 
 async def process_region_to(message: types.Message, state: FSMContext):
-    region = message.text.strip()
-    if region not in get_regions():
+    text = message.text.strip()
+    if text not in get_regions():
         await message.answer("Пожалуйста, выбери регион из списка.")
         return
-
-    await state.update_data(region_to=region)
-
-    cities = get_cities(region)
+    await state.update_data(region_to=text)
+    cities = get_cities(text)
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text=c)] for c in cities],
         resize_keyboard=True,
