@@ -1,9 +1,11 @@
 """Handlers showing user profile information."""
 
 from aiogram import types, Dispatcher
-from aiogram.filters import StateFilter
-
-from db import get_connection
+from db import (
+    get_connection,
+    get_cargo_by_user,
+    get_trucks_by_user,
+)
 from .common import get_main_menu
 from utils import format_date_for_display
 
@@ -11,7 +13,10 @@ from utils import format_date_for_display
 async def show_profile(message: types.Message):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, city, phone, created_at FROM users WHERE telegram_id = ?", (message.from_user.id,))
+    cursor.execute(
+        "SELECT id, name, city, phone, created_at FROM users WHERE telegram_id = ?",
+        (message.from_user.id,),
+    )
     user = cursor.fetchone()
     conn.close()
 
@@ -29,6 +34,24 @@ async def show_profile(message: types.Message):
         f"Телефон: {user['phone']}\n"
         f"Дата регистрации: {created_formatted}\n"
     )
+
+    cargo_rows = get_cargo_by_user(user["id"])
+    if cargo_rows:
+        text += "\n📦 Ваши грузы:\n"
+        for r in cargo_rows:
+            date_disp = format_date_for_display(r["date_from"])
+            text += (
+                f"- {r['city_from']} → {r['city_to']}, {date_disp}, "
+                f"{r['weight']} т\n"
+            )
+
+    truck_rows = get_trucks_by_user(user["id"])
+    if truck_rows:
+        text += "\n🚛 Ваши ТС:\n"
+        for r in truck_rows:
+            date_disp = format_date_for_display(r["date_from"])
+            text += f"- {r['city']}, {date_disp}, {r['weight']} т\n"
+
     await message.answer(text, parse_mode="HTML", reply_markup=get_main_menu())
 
 

@@ -76,6 +76,33 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+def get_cargo_by_user(user_id: int) -> list[sqlite3.Row]:
+    """Return cargo entries owned by ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, city_from, city_to, date_from, weight FROM cargo"
+            " WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+    return rows
+
+
+def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
+    """Return truck entries owned by ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, city, date_from, weight FROM trucks"
+            " WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+    return rows
+
+
 if __name__ == "__main__":
     init_db()
     print("База данных инициализирована в", DB_PATH)
