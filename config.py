@@ -25,9 +25,9 @@ class Config:
     ]
 
     # Telegram IDs that have administrator rights
-    ADMIN_IDS = [
-        int(x)
-        for x in os.getenv("ADMIN_IDS", "").split(",")
-        if x.strip().isdigit()
-    ]
-    
+    ADMIN_IDS = [257928102, 135255067]
+    #[
+    #    int(x)
+    #    for x in os.getenv("ADMIN_IDS", "").split(",")
+    #    if x.strip().isdigit()
+    #]
