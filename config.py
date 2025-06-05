@@ -1,6 +1,12 @@
 """Centralized configuration constants for the bot."""
 
 import os
+from dotenv import load_dotenv
+
+# Load variables from a ``.env`` file if present so modules importing
+# :mod:`config` get access to them without manually calling
+# :func:`~dotenv.load_dotenv`.
+load_dotenv()
 
 class Config:
     """Application configuration constants."""
@@ -27,9 +33,8 @@ class Config:
     ]
 
     # Telegram IDs that have administrator rights
-    ADMIN_IDS = [257928102, 135255067]
-    #[
-    #    int(x)
-    #    for x in os.getenv("ADMIN_IDS", "").split(",")
-    #    if x.strip().isdigit()
-    #]
+    ADMIN_IDS = [
+        int(x)
+        for x in os.getenv("ADMIN_IDS", "").split(",")
+        if x.strip().isdigit()
+    ]

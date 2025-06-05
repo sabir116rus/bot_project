@@ -23,17 +23,26 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
 pip install -r requirements.txt
 ```
 
-2. Export your Telegram bot token as an environment variable and start the bot:
+2. Copy ``.env.example`` to ``.env`` and edit it with your credentials:
 
 ```bash
-export API_TOKEN=<your-telegram-token>
-python bot.py
+cp .env.example .env
+# then open .env and set API_TOKEN and ADMIN_IDS
 ```
 
-`API_TOKEN` is required by `bot.py` to authenticate with Telegram.
+The bot reads ``API_TOKEN`` and ``ADMIN_IDS`` from this file automatically.
 
-Administrators are defined via the `ADMIN_IDS` environment variable which
-contains a comma separated list of Telegram user IDs.
+```
+API_TOKEN=<your-telegram-token>
+ADMIN_IDS=257928102,135255067
+```
+
+Alternatively you may export these variables in the shell before running
+``bot.py``.
+
+```bash
+python bot.py
+```
 
 The SQLite database file is stored at `bot_database.sqlite3` in the project root (path defined in `Config.DB_PATH`).
 
