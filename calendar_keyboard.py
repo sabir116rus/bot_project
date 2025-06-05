@@ -10,14 +10,71 @@ from db import get_connection
 from handlers.common import get_main_menu, show_search_results
 from utils import get_current_user_id, log_user_action
 
+MONTHS_RU = [
+    "",
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+]
 
-def generate_calendar(include_skip: bool = False) -> types.InlineKeyboardMarkup:
-    """Return a simple calendar for the current month."""
+DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+
+
+def generate_calendar(
+    year: int | None = None,
+    month: int | None = None,
+    include_skip: bool = False,
+) -> types.InlineKeyboardMarkup:
+    """Return an inline calendar for the given month."""
+
     now = datetime.now()
-    year, month = now.year, now.month
+    year = year or now.year
+    month = month or now.month
     cal = calendar.monthcalendar(year, month)
 
     rows: list[list[types.InlineKeyboardButton]] = []
+
+    # Navigation row: prev year/month and next year/month
+    rows.append(
+        [
+            types.InlineKeyboardButton(
+                text="\u00ab",
+                callback_data=f"cal:prev_y:{year}-{month}",
+            ),
+            types.InlineKeyboardButton(
+                text="<",
+                callback_data=f"cal:prev_m:{year}-{month}",
+            ),
+            types.InlineKeyboardButton(
+                text=f"{MONTHS_RU[month]} {year}",
+                callback_data="ignore",
+            ),
+            types.InlineKeyboardButton(
+                text=">",
+                callback_data=f"cal:next_m:{year}-{month}",
+            ),
+            types.InlineKeyboardButton(
+                text="\u00bb",
+                callback_data=f"cal:next_y:{year}-{month}",
+            ),
+        ]
+    )
+
+    # Days of week row
+    rows.append(
+        [types.InlineKeyboardButton(text=d, callback_data="ignore") for d in DAYS_RU]
+    )
+
+    # Weeks with day numbers
     for week in cal:
         row = []
         for day in week:
@@ -38,16 +95,50 @@ def generate_calendar(include_skip: bool = False) -> types.InlineKeyboardMarkup:
 
 async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMContext) -> None:
     """Handle inline calendar selection for all scenarios."""
+    data_str = callback.data
 
-    value = "нет" if callback.data == "cal:skip" else callback.data.split(":", 1)[1]
+    # Handle calendar navigation buttons
+    if data_str.startswith("cal:prev_") or data_str.startswith("cal:next_"):
+        _, action, ym = data_str.split(":", 2)
+        year, month = map(int, ym.split("-"))
+
+        if action == "prev_m":
+            month -= 1
+            if month < 1:
+                month = 12
+                year -= 1
+        elif action == "next_m":
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+        elif action == "prev_y":
+            year -= 1
+        elif action == "next_y":
+            year += 1
+
+        data = await state.get_data()
+        include_skip = data.get("calendar_include_skip", False)
+        markup = generate_calendar(year, month, include_skip=include_skip)
+        await callback.message.edit_reply_markup(reply_markup=markup)
+        await callback.answer()
+        return
+
+    value = "нет" if data_str == "cal:skip" else data_str.split(":", 1)[1]
     current_state = await state.get_state()
 
     await callback.message.delete()
 
     if current_state == "CargoAddStates:date_from":
         await state.update_data(date_from=value)
-        bot = await callback.message.answer("Дата прибытия:", reply_markup=generate_calendar())
-        await state.update_data(last_bot_message_id=bot.message_id, calendar_field="date_to")
+        bot = await callback.message.answer(
+            "Дата прибытия:", reply_markup=generate_calendar()
+        )
+        await state.update_data(
+            last_bot_message_id=bot.message_id,
+            calendar_field="date_to",
+            calendar_include_skip=False,
+        )
         await state.set_state("CargoAddStates:date_to")
         await callback.answer()
         return
@@ -74,7 +165,11 @@ async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMCont
             "Максимальная дата отправления:",
             reply_markup=generate_calendar(include_skip=True),
         )
-        await state.update_data(last_bot_message_id=bot.message_id, calendar_field="filter_date_to")
+        await state.update_data(
+            last_bot_message_id=bot.message_id,
+            calendar_field="filter_date_to",
+            calendar_include_skip=True,
+        )
         await state.set_state("CargoSearchStates:date_to")
         await callback.answer()
         return
@@ -135,8 +230,14 @@ async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMCont
 
     if current_state == "TruckAddStates:date_from":
         await state.update_data(date_from=value)
-        bot = await callback.message.answer("Дата доступности (по):", reply_markup=generate_calendar())
-        await state.update_data(last_bot_message_id=bot.message_id, calendar_field="date_to")
+        bot = await callback.message.answer(
+            "Дата доступности (по):", reply_markup=generate_calendar()
+        )
+        await state.update_data(
+            last_bot_message_id=bot.message_id,
+            calendar_field="date_to",
+            calendar_include_skip=False,
+        )
         await state.set_state("TruckAddStates:date_to")
         await callback.answer()
         return
@@ -163,7 +264,11 @@ async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMCont
             "Максимальная дата начала:",
             reply_markup=generate_calendar(include_skip=True),
         )
-        await state.update_data(last_bot_message_id=bot.message_id, calendar_field="filter_date_to")
+        await state.update_data(
+            last_bot_message_id=bot.message_id,
+            calendar_field="filter_date_to",
+            calendar_include_skip=True,
+        )
         await state.set_state("TruckSearchStates:date_to")
         await callback.answer()
         return

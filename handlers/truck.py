@@ -9,80 +9,12 @@ from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from . import common as common_mod
-from config import Config
-from utils import parse_date, validate_weight
+from .common import (
+    get_main_menu,
+    ask_and_store,
+    show_search_results,
+)
 
-get_main_menu = common_mod.get_main_menu
-ask_and_store = common_mod.ask_and_store
-show_search_results = common_mod.show_search_results
-process_weight_step = getattr(common_mod, "process_weight_step", None)
-parse_and_store_date = getattr(common_mod, "parse_and_store_date", None)
-build_search_query = getattr(common_mod, "build_search_query", None)
-
-if process_weight_step is None:
-    async def process_weight_step(
-        message: types.Message,
-        state: FSMContext,
-        next_state: State,
-        prompt: str,
-        any_option: str,
-        invalid_text: str,
-        *,
-        validate_func=validate_weight,
-    ):
-        raw = message.text.strip()
-        ok, weight = validate_func(raw)
-        if not ok:
-            await message.answer(invalid_text)
-            return
-
-        await state.update_data(weight=weight)
-        buttons = [[KeyboardButton(text=b)] for b in Config.BODY_TYPES]
-        buttons.append([KeyboardButton(text=any_option)])
-        kb = types.ReplyKeyboardMarkup(
-            keyboard=buttons,
-            resize_keyboard=True,
-            one_time_keyboard=True,
-        )
-        await ask_and_store(message, state, prompt, next_state, reply_markup=kb)
-
-if parse_and_store_date is None:
-    async def parse_and_store_date(
-        message: types.Message,
-        state: FSMContext,
-        field_name: str,
-        error_text: str,
-        *,
-        compare_field: str | None = None,
-        compare_error: str = "",
-    ) -> bool:
-        raw = message.text.strip()
-        parsed = parse_date(raw)
-        if not parsed:
-            await message.answer(error_text)
-            return False
-        if compare_field:
-            data = await state.get_data()
-            prev = data.get(compare_field)
-            if prev:
-                dt_prev = datetime.strptime(prev, "%Y-%m-%d")
-                dt_cur = datetime.strptime(parsed, "%Y-%m-%d")
-                if dt_cur < dt_prev:
-                    await message.answer(compare_error)
-                    return False
-        await state.update_data(**{field_name: parsed})
-        return True
-
-if build_search_query is None:
-    def build_search_query(base_query: str, filters: list[tuple[str | None, str]]):
-        query = base_query
-        params: list[str] = []
-        for value, clause in filters:
-            if value is not None:
-                query += clause
-                params.append(value)
-        return query, params
 from calendar_keyboard import generate_calendar, handle_calendar_callback
 from utils import (
     get_current_user_id,
@@ -193,6 +125,7 @@ async def process_city(message: types.Message, state: FSMContext):
         calendar_next_state=TruckAddStates.date_to,
         calendar_next_text="Дата доступности (по):",
         calendar_next_markup=generate_calendar(),
+        calendar_include_skip=False,
     )
 
 
@@ -218,6 +151,7 @@ async def process_date_from(message: types.Message, state: FSMContext):
         calendar_next_state=TruckAddStates.weight,
         calendar_next_text="Грузоподъёмность (в тоннах):",
         calendar_next_markup=None,
+        calendar_include_skip=False,
     )
 
 
@@ -426,6 +360,7 @@ async def filter_city(message: types.Message, state: FSMContext):
         calendar_next_state=TruckSearchStates.date_to,
         calendar_next_text="Максимальная дата начала:",
         calendar_next_markup=generate_calendar(include_skip=True),
+        calendar_include_skip=True,
     )
     await state.set_state(TruckSearchStates.date_from)
 
@@ -465,6 +400,7 @@ async def filter_date_from_truck(message: types.Message, state: FSMContext):
         calendar_next_state=TruckSearchStates.date_to,
         calendar_next_text="",
         calendar_next_markup=None,
+        calendar_include_skip=True,
     )
     await state.set_state(TruckSearchStates.date_to)
 
