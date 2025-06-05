@@ -36,6 +36,10 @@ async def show_profile(message: types.Message):
     )
 
     cargo_rows = get_cargo_by_user(user["id"])
+    truck_rows = get_trucks_by_user(user["id"])
+
+    kb_rows: list[list[types.InlineKeyboardButton]] = []
+
     if cargo_rows:
         text += "\n📦 Ваши грузы:\n"
         for r in cargo_rows:
@@ -44,15 +48,35 @@ async def show_profile(message: types.Message):
                 f"- {r['city_from']} → {r['city_to']}, {date_disp}, "
                 f"{r['weight']} т\n"
             )
+            kb_rows.append([
+                types.InlineKeyboardButton(
+                    text="✏️ Изменить",
+                    callback_data=f"edit_cargo:{r['id']}",
+                ),
+                types.InlineKeyboardButton(
+                    text="❌ Удалить",
+                    callback_data=f"del_cargo:{r['id']}",
+                ),
+            ])
 
-    truck_rows = get_trucks_by_user(user["id"])
     if truck_rows:
         text += "\n🚛 Ваши ТС:\n"
         for r in truck_rows:
             date_disp = format_date_for_display(r["date_from"])
             text += f"- {r['city']}, {date_disp}, {r['weight']} т\n"
+            kb_rows.append([
+                types.InlineKeyboardButton(
+                    text="✏️ Изменить",
+                    callback_data=f"edit_truck:{r['id']}",
+                ),
+                types.InlineKeyboardButton(
+                    text="❌ Удалить",
+                    callback_data=f"del_truck:{r['id']}",
+                ),
+            ])
 
-    await message.answer(text, parse_mode="HTML", reply_markup=get_main_menu())
+    markup = types.InlineKeyboardMarkup(inline_keyboard=kb_rows) if kb_rows else None
+    await message.answer(text, parse_mode="HTML", reply_markup=markup)
 
 
 def register_profile_handler(dp: Dispatcher):

@@ -5,10 +5,14 @@ from aiogram.types import KeyboardButton
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
-from states import BaseStates
+from states import BaseStates, TruckEditStates
 from datetime import datetime
 
-from db import get_connection
+from db import (
+    get_connection,
+    update_truck_weight,
+    delete_truck,
+)
 from .common import (
     get_main_menu,
     ask_and_store,
@@ -465,6 +469,41 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+# ========== СЦЕНАРИЙ: РЕДАКТИРОВАНИЕ/УДАЛЕНИЕ ТС ==========
+
+async def handle_edit_truck(callback: types.CallbackQuery, state: FSMContext):
+    """Start truck weight editing."""
+    truck_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_truck_id=truck_id)
+    await callback.message.answer("Новый вес (тонны):")
+    await state.set_state(TruckEditStates.weight)
+    await callback.answer()
+
+
+async def process_edit_truck_weight(message: types.Message, state: FSMContext):
+    """Validate and store new truck weight."""
+    ok, weight = validate_weight(message.text)
+    if not ok:
+        await message.answer("Введите число от 1 до 1000:")
+        return
+    data = await state.get_data()
+    tid = data.get("edit_truck_id")
+    if tid:
+        update_truck_weight(tid, weight)
+        clear_city_cache()
+    await message.answer("Запись обновлена.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def handle_delete_truck(callback: types.CallbackQuery):
+    """Delete truck entry and inform the user."""
+    truck_id = int(callback.data.split(":")[1])
+    delete_truck(truck_id)
+    clear_city_cache()
+    await callback.answer("Удалено")
+    await callback.message.delete()
+
+
 
 
 def register_truck_handlers(dp: Dispatcher):
@@ -504,4 +543,18 @@ def register_truck_handlers(dp: Dispatcher):
         handle_calendar_callback,
         StateFilter(TruckSearchStates.date_to),
         lambda c: c.data.startswith("cal:")
+    )
+
+    # Редактирование и удаление
+    dp.callback_query.register(
+        handle_edit_truck,
+        lambda c: c.data.startswith("edit_truck:"),
+    )
+    dp.callback_query.register(
+        handle_delete_truck,
+        lambda c: c.data.startswith("del_truck:"),
+    )
+    dp.message.register(
+        process_edit_truck_weight,
+        StateFilter(TruckEditStates.weight),
     )
