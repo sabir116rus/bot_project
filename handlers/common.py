@@ -1,7 +1,6 @@
 """Shared utility handlers and helper functions."""
 
 from aiogram import types, Dispatcher
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup,
@@ -14,8 +13,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
 
-from utils import format_date_for_display
+from datetime import datetime
+
 import logging
+from utils import format_date_for_display, parse_date, validate_weight
+from config import Config
 
 def get_main_menu() -> ReplyKeyboardMarkup:
     """
@@ -168,6 +170,81 @@ async def show_search_results(message: types.Message, rows, page: int = 0, per_p
     except UnicodeEncodeError as e:
         logging.exception("Encoding error with text: %r", text)
         await message.answer("Произошла ошибка при выводе текста.")
+
+
+async def process_weight_step(
+    message: types.Message,
+    state: FSMContext,
+    next_state: State,
+    prompt: str,
+    any_option: str,
+    invalid_text: str,
+    *,
+    validate_func=validate_weight,
+):
+    """Validate weight input and ask the next question."""
+    raw = message.text.strip()
+    ok, weight = validate_func(raw)
+    if not ok:
+        await message.answer(invalid_text)
+        return
+
+    await state.update_data(weight=weight)
+    buttons = [[KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
+    buttons.append([KeyboardButton(text=any_option)])
+    kb = ReplyKeyboardMarkup(
+        keyboard=buttons,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await ask_and_store(
+        message,
+        state,
+        prompt,
+        next_state,
+        reply_markup=kb,
+    )
+
+
+async def parse_and_store_date(
+    message: types.Message,
+    state: FSMContext,
+    field_name: str,
+    error_text: str,
+    *,
+    compare_field: str | None = None,
+    compare_error: str = "",
+) -> bool:
+    """Parse date from ``message`` and store under ``field_name`` in state."""
+    raw = message.text.strip()
+    parsed = parse_date(raw)
+    if not parsed:
+        await message.answer(error_text)
+        return False
+
+    if compare_field:
+        data = await state.get_data()
+        prev = data.get(compare_field)
+        if prev:
+            dt_prev = datetime.strptime(prev, "%Y-%m-%d")
+            dt_cur = datetime.strptime(parsed, "%Y-%m-%d")
+            if dt_cur < dt_prev:
+                await message.answer(compare_error)
+                return False
+
+    await state.update_data(**{field_name: parsed})
+    return True
+
+
+def build_search_query(base_query: str, filters: list[tuple[str | None, str]]):
+    """Return SQL query and params applying provided filters."""
+    query = base_query
+    params: list[str] = []
+    for value, clause in filters:
+        if value is not None:
+            query += clause
+            params.append(value)
+    return query, params
 
 
 

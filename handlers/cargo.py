@@ -8,14 +8,82 @@ from states import BaseStates
 from datetime import datetime
 
 from db import get_connection
-from .common import (
-    get_main_menu,
-    ask_and_store,
-    show_search_results,
-)
+from . import common as common_mod
+from config import Config
+from utils import parse_date, validate_weight
+
+get_main_menu = common_mod.get_main_menu
+ask_and_store = common_mod.ask_and_store
+show_search_results = common_mod.show_search_results
+process_weight_step = getattr(common_mod, "process_weight_step", None)
+parse_and_store_date = getattr(common_mod, "parse_and_store_date", None)
+build_search_query = getattr(common_mod, "build_search_query", None)
+
+if process_weight_step is None:
+    async def process_weight_step(
+        message: types.Message,
+        state: FSMContext,
+        next_state: State,
+        prompt: str,
+        any_option: str,
+        invalid_text: str,
+        *,
+        validate_func=validate_weight,
+    ):
+        raw = message.text.strip()
+        ok, weight = validate_func(raw)
+        if not ok:
+            await message.answer(invalid_text)
+            return
+
+        await state.update_data(weight=weight)
+        buttons = [[types.KeyboardButton(text=b)] for b in Config.BODY_TYPES]
+        buttons.append([types.KeyboardButton(text=any_option)])
+        kb = types.ReplyKeyboardMarkup(
+            keyboard=buttons,
+            resize_keyboard=True,
+            one_time_keyboard=True,
+        )
+        await ask_and_store(message, state, prompt, next_state, reply_markup=kb)
+
+if parse_and_store_date is None:
+    async def parse_and_store_date(
+        message: types.Message,
+        state: FSMContext,
+        field_name: str,
+        error_text: str,
+        *,
+        compare_field: str | None = None,
+        compare_error: str = "",
+    ) -> bool:
+        raw = message.text.strip()
+        parsed = parse_date(raw)
+        if not parsed:
+            await message.answer(error_text)
+            return False
+        if compare_field:
+            data = await state.get_data()
+            prev = data.get(compare_field)
+            if prev:
+                dt_prev = datetime.strptime(prev, "%Y-%m-%d")
+                dt_cur = datetime.strptime(parsed, "%Y-%m-%d")
+                if dt_cur < dt_prev:
+                    await message.answer(compare_error)
+                    return False
+        await state.update_data(**{field_name: parsed})
+        return True
+
+if build_search_query is None:
+    def build_search_query(base_query: str, filters: list[tuple[str | None, str]]):
+        query = base_query
+        params: list[str] = []
+        for value, clause in filters:
+            if value is not None:
+                query += clause
+                params.append(value)
+        return query, params
 from calendar_keyboard import generate_calendar, handle_calendar_callback
 from utils import (
-    parse_date,
     get_current_user_id,
     format_date_for_display,
     log_user_action,
@@ -28,7 +96,6 @@ from locations import (
     get_regions,
     get_cities,
 )
-from config import Config
 
 
 class CargoAddStates(BaseStates):
@@ -188,14 +255,15 @@ async def process_city_to(message: types.Message, state: FSMContext):
 
 
 async def process_date_from(message: types.Message, state: FSMContext):
-    raw = message.text.strip()
-    parsed = parse_date(raw)
-    if not parsed:
-        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
+    ok = await parse_and_store_date(
+        message,
+        state,
+        "date_from",
+        "Неверный формат даты. Введите ДД.MM.ГГГГ:",
+    )
+    if not ok:
         return
 
-    await state.update_data(date_from=parsed)
-    # Сразу запрашиваем дату прибытия
     await ask_and_store(
         message,
         state,
@@ -212,22 +280,17 @@ async def process_date_from(message: types.Message, state: FSMContext):
 
 
 async def process_date_to(message: types.Message, state: FSMContext):
-    raw = message.text.strip()
-    parsed_to = parse_date(raw)
-    if not parsed_to:
-        await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ:")
+    ok = await parse_and_store_date(
+        message,
+        state,
+        "date_to",
+        "Неверный формат даты. Введите ДД.MM.ГГГГ:",
+        compare_field="date_from",
+        compare_error="Дата прибытия не может быть раньше даты отправления. Повторите ввод:",
+    )
+    if not ok:
         return
 
-    data = await state.get_data()
-    df_iso = data.get("date_from")
-    dt_from = datetime.strptime(df_iso, "%Y-%m-%d") if df_iso else None
-    dt_to = datetime.strptime(parsed_to, "%Y-%m-%d")
-
-    if dt_from and dt_to < dt_from:
-        await message.answer("Дата прибытия не может быть раньше даты отправления. Повторите ввод:")
-        return
-
-    await state.update_data(date_to=parsed_to)
     await ask_and_store(
         message,
         state,
@@ -238,29 +301,14 @@ async def process_date_to(message: types.Message, state: FSMContext):
 
 async def process_weight(message: types.Message, state: FSMContext):
     """Store cargo weight after validating the user input."""
-    raw = message.text.strip()
-    ok, weight = validate_weight(raw)
-    if not ok:
-        await message.answer(
-            "Пожалуйста, введи вес от 1 до 1000 тонн цифрой (например, 12):"
-        )
-        return
-
-    await state.update_data(weight=weight)
-
-    kb_buttons = [[types.KeyboardButton(text=bt)] for bt in Config.BODY_TYPES]
-    kb_buttons.append([types.KeyboardButton(text="Не важно")])
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=kb_buttons,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    await ask_and_store(
+    await process_weight_step(
         message,
         state,
-        "Выбери тип кузова:",
         CargoAddStates.body_type,
-        reply_markup=kb
+        "Выбери тип кузова:",
+        "Не важно",
+        "Пожалуйста, введи вес от 1 до 1000 тонн цифрой (например, 12):",
+        validate_func=validate_weight,
     )
 
 
@@ -479,11 +527,14 @@ async def filter_city_to(message: types.Message, state: FSMContext):
 async def filter_date_from(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
-        parsed = parse_date(message.text.strip())
-        if not parsed:
-            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».")
+        ok = await parse_and_store_date(
+            message,
+            state,
+            "filter_date_from",
+            "Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».",
+        )
+        if not ok:
             return
-        await state.update_data(filter_date_from=parsed)
     else:
         await state.update_data(filter_date_from="нет")
 
@@ -515,11 +566,14 @@ async def filter_date_from(message: types.Message, state: FSMContext):
 async def filter_date_to(message: types.Message, state: FSMContext):
     raw = message.text.strip().lower()
     if raw != "нет":
-        parsed = parse_date(message.text.strip())
-        if not parsed:
-            await message.answer("Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».")
+        ok = await parse_and_store_date(
+            message,
+            state,
+            "filter_date_to",
+            "Неверный формат даты. Введите ДД.MM.ГГГГ или «нет».",
+        )
+        if not ok:
             return
-        await state.update_data(filter_date_to=parsed)
     else:
         await state.update_data(filter_date_to="нет")
 
@@ -530,26 +584,19 @@ async def filter_date_to(message: types.Message, state: FSMContext):
     fd_from = data.get("filter_date_from", "")
     fd_to = data.get("filter_date_to", "")
 
-    # Собираем SQL-запрос с учётом выбранных фильтров
-    query = """
+    base_query = """
     SELECT c.id, u.name, c.city_from, c.region_from, c.city_to, c.region_to, c.date_from, c.weight, c.body_type
     FROM cargo c
     JOIN users u ON c.user_id = u.id
     WHERE 1=1
     """
-    params = []
-    if fc_from != "все":
-        query += " AND lower(c.city_from) = ?"
-        params.append(fc_from)
-    if fc_to != "все":
-        query += " AND lower(c.city_to) = ?"
-        params.append(fc_to)
-    if fd_from != "нет":
-        query += " AND date(c.date_from) >= date(?)"
-        params.append(fd_from)
-    if fd_to != "нет":
-        query += " AND date(c.date_from) <= date(?)"
-        params.append(fd_to)
+    filters = [
+        (fc_from if fc_from != "все" else None, " AND lower(c.city_from) = ?"),
+        (fc_to if fc_to != "все" else None, " AND lower(c.city_to) = ?"),
+        (fd_from if fd_from != "нет" else None, " AND date(c.date_from) >= date(?)"),
+        (fd_to if fd_to != "нет" else None, " AND date(c.date_from) <= date(?)"),
+    ]
+    query, params = build_search_query(base_query, filters)
 
     conn = get_connection()
     cursor = conn.cursor()
