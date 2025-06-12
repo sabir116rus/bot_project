@@ -135,13 +135,20 @@ def update_cargo_weight(cargo_id: int, weight: int) -> None:
         conn.commit()
 
 
-def update_cargo_route(cargo_id: int, city_from: str, city_to: str) -> None:
-    """Update route cities for cargo entry ``cargo_id``."""
+def update_cargo_route(
+    cargo_id: int,
+    city_from: str,
+    region_from: str,
+    city_to: str,
+    region_to: str,
+) -> None:
+    """Update route cities and regions for cargo entry ``cargo_id``."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE cargo SET city_from = ?, city_to = ? WHERE id = ?",
-            (city_from, city_to, cargo_id),
+            "UPDATE cargo SET city_from = ?, region_from = ?,"
+            " city_to = ?, region_to = ? WHERE id = ?",
+            (city_from, region_from, city_to, region_to, cargo_id),
         )
         conn.commit()
 
@@ -176,13 +183,13 @@ def update_truck_weight(truck_id: int, weight: int) -> None:
         conn.commit()
 
 
-def update_truck_route(truck_id: int, route_regions: str) -> None:
-    """Update route regions for truck entry ``truck_id``."""
+def update_truck_route(truck_id: int, city: str, region: str) -> None:
+    """Update location city and region for truck entry ``truck_id``."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE trucks SET route_regions = ? WHERE id = ?",
-            (route_regions, truck_id),
+            "UPDATE trucks SET city = ?, region = ? WHERE id = ?",
+            (city, region, truck_id),
         )
         conn.commit()
 

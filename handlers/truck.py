@@ -493,6 +493,7 @@ async def handle_edit_truck(callback: types.CallbackQuery):
             [types.InlineKeyboardButton(text="Маршрут", callback_data=f"edit_truck_route:{row['id']}")],
             [types.InlineKeyboardButton(text="Даты", callback_data=f"edit_truck_dates:{row['id']}")],
             [types.InlineKeyboardButton(text="Вес", callback_data=f"edit_truck_weight:{row['id']}")],
+            [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_truck:{row['id']}")],
         ]
     )
     await callback.message.answer(text, reply_markup=kb)
@@ -510,15 +511,30 @@ async def start_edit_truck_weight(callback: types.CallbackQuery, state: FSMConte
 async def start_edit_truck_route(callback: types.CallbackQuery, state: FSMContext):
     truck_id = int(callback.data.split(":")[1])
     await state.update_data(edit_truck_id=truck_id)
-    await callback.message.answer("Новый маршрут:")
-    await state.set_state(TruckEditStates.route)
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await callback.message.answer("Новый регион стоянки:", reply_markup=kb)
+    await state.set_state(TruckEditStates.route_region)
     await callback.answer()
 
 
 async def start_edit_truck_dates(callback: types.CallbackQuery, state: FSMContext):
     truck_id = int(callback.data.split(":")[1])
     await state.update_data(edit_truck_id=truck_id)
-    await callback.message.answer("Новая дата отправления (ГГГГ-ММ-ДД):")
+    await callback.message.answer(
+        "Новая дата отправления:", reply_markup=generate_calendar()
+    )
+    await state.update_data(
+        calendar_field="date_from",
+        calendar_next_state=TruckEditStates.date_to,
+        calendar_next_text="Новая дата окончания:",
+        calendar_next_markup=generate_calendar(),
+        calendar_include_skip=False,
+    )
     await state.set_state(TruckEditStates.date_from)
     await callback.answer()
 
@@ -538,12 +554,33 @@ async def process_edit_truck_weight(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-async def process_edit_truck_route(message: types.Message, state: FSMContext):
-    """Update truck route."""
+async def process_edit_truck_route_region(message: types.Message, state: FSMContext):
+    """Store new region and ask for city."""
+    region = message.text.strip()
+    await state.update_data(new_region=region)
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await message.answer("Новый город стоянки:", reply_markup=kb)
+    await state.set_state(TruckEditStates.route_city)
+
+
+async def process_edit_truck_route_city(message: types.Message, state: FSMContext):
+    """Update truck location in the database."""
     data = await state.get_data()
+    region = data.get("new_region")
+    if not region:
+        await message.answer("Попробуйте снова: выберите регион.")
+        await state.clear()
+        return
+    cities = get_cities(region)
     tid = data.get("edit_truck_id")
     if tid:
-        update_truck_route(tid, message.text.strip())
+        update_truck_route(tid, message.text.strip(), region)
+        clear_city_cache()
     await message.answer("Маршрут обновлён.", reply_markup=get_main_menu())
     await state.clear()
 
@@ -642,8 +679,12 @@ def register_truck_handlers(dp: Dispatcher):
         StateFilter(TruckEditStates.weight),
     )
     dp.message.register(
-        process_edit_truck_route,
-        StateFilter(TruckEditStates.route),
+        process_edit_truck_route_region,
+        StateFilter(TruckEditStates.route_region),
+    )
+    dp.message.register(
+        process_edit_truck_route_city,
+        StateFilter(TruckEditStates.route_city),
     )
     dp.message.register(
         process_edit_truck_date_from,
@@ -652,4 +693,14 @@ def register_truck_handlers(dp: Dispatcher):
     dp.message.register(
         process_edit_truck_date_to,
         StateFilter(TruckEditStates.date_to),
+    )
+    dp.callback_query.register(
+        handle_calendar_callback,
+        StateFilter(TruckEditStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        handle_calendar_callback,
+        StateFilter(TruckEditStates.date_to),
+        lambda c: c.data.startswith("cal:")
     )

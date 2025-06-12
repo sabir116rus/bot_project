@@ -212,24 +212,32 @@ def test_edit_and_delete_flows(monkeypatch):
     state = DummyFSM()
     cq = DummyCallbackQuery("edit_cargo_route:1")
     asyncio.run(cargo.start_edit_cargo_route(cq, state))
-    assert state.state == cargo.CargoEditStates.route_from
-    asyncio.run(cargo.process_edit_route_from(DummyMessage("X"), state))
-    assert state.state == cargo.CargoEditStates.route_to
-    asyncio.run(cargo.process_edit_route_to(DummyMessage("Y"), state))
+    assert state.state == cargo.CargoEditStates.route_region_from
+    asyncio.run(cargo.process_edit_route_region_from(DummyMessage("AR"), state))
+    assert state.state == cargo.CargoEditStates.route_city_from
+    asyncio.run(cargo.process_edit_route_city_from(DummyMessage("X"), state))
+    assert state.state == cargo.CargoEditStates.route_region_to
+    asyncio.run(cargo.process_edit_route_region_to(DummyMessage("BR"), state))
+    assert state.state == cargo.CargoEditStates.route_city_to
+    asyncio.run(cargo.process_edit_route_city_to(DummyMessage("Y"), state))
     conn = sqlite3.connect(db_path)
-    r = conn.execute("SELECT city_from, city_to FROM cargo WHERE id=1").fetchone()
+    r = conn.execute(
+        "SELECT city_from, region_from, city_to, region_to FROM cargo WHERE id=1"
+    ).fetchone()
     conn.close()
-    assert r == ("X", "Y")
+    assert r == ("X", "AR", "Y", "BR")
 
     state = DummyFSM()
     cq = DummyCallbackQuery("edit_truck_route:1")
     asyncio.run(truck.start_edit_truck_route(cq, state))
-    assert state.state == truck.TruckEditStates.route
-    asyncio.run(truck.process_edit_truck_route(DummyMessage("R"), state))
+    assert state.state == truck.TruckEditStates.route_region
+    asyncio.run(truck.process_edit_truck_route_region(DummyMessage("XR"), state))
+    assert state.state == truck.TruckEditStates.route_city
+    asyncio.run(truck.process_edit_truck_route_city(DummyMessage("X"), state))
     conn = sqlite3.connect(db_path)
-    route = conn.execute("SELECT route_regions FROM trucks WHERE id=1").fetchone()[0]
+    loc = conn.execute("SELECT city, region FROM trucks WHERE id=1").fetchone()
     conn.close()
-    assert route == "R"
+    assert loc == ("X", "XR")
 
     state = DummyFSM()
     cq = DummyCallbackQuery("edit_truck_dates:1")

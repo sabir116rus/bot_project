@@ -16,8 +16,10 @@ class CargoEditStates(BaseStates):
     """FSM states for cargo editing workflow."""
 
     weight = State()
-    route_from = State()
-    route_to = State()
+    route_region_from = State()
+    route_city_from = State()
+    route_region_to = State()
+    route_city_to = State()
     date_from = State()
     date_to = State()
 
@@ -26,7 +28,8 @@ class TruckEditStates(BaseStates):
     """FSM states for truck editing workflow."""
 
     weight = State()
-    route = State()
+    route_region = State()
+    route_city = State()
     date_from = State()
     date_to = State()
 

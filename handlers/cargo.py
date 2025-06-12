@@ -588,6 +588,7 @@ async def handle_edit_cargo(callback: types.CallbackQuery):
             [types.InlineKeyboardButton(text="Маршрут", callback_data=f"edit_cargo_route:{row['id']}")],
             [types.InlineKeyboardButton(text="Даты", callback_data=f"edit_cargo_dates:{row['id']}")],
             [types.InlineKeyboardButton(text="Вес", callback_data=f"edit_cargo_weight:{row['id']}")],
+            [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_cargo:{row['id']}")],
         ]
     )
     await callback.message.answer(text, reply_markup=kb)
@@ -605,15 +606,30 @@ async def start_edit_cargo_weight(callback: types.CallbackQuery, state: FSMConte
 async def start_edit_cargo_route(callback: types.CallbackQuery, state: FSMContext):
     cargo_id = int(callback.data.split(":")[1])
     await state.update_data(edit_cargo_id=cargo_id)
-    await callback.message.answer("Новый город отправления:")
-    await state.set_state(CargoEditStates.route_from)
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await callback.message.answer("Новый регион отправления:", reply_markup=kb)
+    await state.set_state(CargoEditStates.route_region_from)
     await callback.answer()
 
 
 async def start_edit_cargo_dates(callback: types.CallbackQuery, state: FSMContext):
     cargo_id = int(callback.data.split(":")[1])
     await state.update_data(edit_cargo_id=cargo_id)
-    await callback.message.answer("Новая дата отправления (ГГГГ-ММ-ДД):")
+    await callback.message.answer(
+        "Новая дата отправления:", reply_markup=generate_calendar()
+    )
+    await state.update_data(
+        calendar_field="date_from",
+        calendar_next_state=CargoEditStates.date_to,
+        calendar_next_text="Новая дата прибытия:",
+        calendar_next_markup=generate_calendar(),
+        calendar_include_skip=False,
+    )
     await state.set_state(CargoEditStates.date_from)
     await callback.answer()
 
@@ -633,23 +649,68 @@ async def process_edit_weight(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-async def process_edit_route_from(message: types.Message, state: FSMContext):
-    """Store new origin city and ask for destination."""
+async def process_edit_route_region_from(message: types.Message, state: FSMContext):
+    """Store new origin region and ask for city."""
+    region = message.text.strip()
+    await state.update_data(new_region_from=region)
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await message.answer("Новый город отправления:", reply_markup=kb)
+    await state.set_state(CargoEditStates.route_city_from)
+
+
+async def process_edit_route_city_from(message: types.Message, state: FSMContext):
+    """Store new origin city and ask for destination region."""
+    data = await state.get_data()
+    region = data.get("new_region_from")
+    if not region:
+        await message.answer("Попробуйте снова: выберите регион отправления.")
+        await state.clear()
+        return
+    cities = get_cities(region)
     await state.update_data(new_city_from=message.text.strip())
-    await message.answer("Новый город назначения:")
-    await state.set_state(CargoEditStates.route_to)
+    regions = get_regions()
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=r)] for r in regions],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await message.answer("Новый регион назначения:", reply_markup=kb)
+    await state.set_state(CargoEditStates.route_region_to)
 
 
-async def process_edit_route_to(message: types.Message, state: FSMContext):
+async def process_edit_route_region_to(message: types.Message, state: FSMContext):
+    """Store new destination region and ask for city."""
+    region = message.text.strip()
+    await state.update_data(new_region_to=region)
+    cities = get_cities(region)
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=c)] for c in cities],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await message.answer("Новый город назначения:", reply_markup=kb)
+    await state.set_state(CargoEditStates.route_city_to)
+
+
+async def process_edit_route_city_to(message: types.Message, state: FSMContext):
     """Update route in the database."""
     data = await state.get_data()
     cid = data.get("edit_cargo_id")
-    city_from = data.get("new_city_from")
-    if cid and city_from:
-        update_cargo_route(cid, city_from, message.text.strip())
+    rf = data.get("new_region_from")
+    cf = data.get("new_city_from")
+    rt = data.get("new_region_to")
+    if cid and rf and cf and rt:
+        update_cargo_route(cid, cf, rf, message.text.strip(), rt)
         clear_city_cache()
     await message.answer("Маршрут обновлён.", reply_markup=get_main_menu())
     await state.clear()
+
+
 
 
 async def process_edit_date_from(message: types.Message, state: FSMContext):
@@ -748,12 +809,20 @@ def register_cargo_handlers(dp: Dispatcher):
         StateFilter(CargoEditStates.weight),
     )
     dp.message.register(
-        process_edit_route_from,
-        StateFilter(CargoEditStates.route_from),
+        process_edit_route_region_from,
+        StateFilter(CargoEditStates.route_region_from),
     )
     dp.message.register(
-        process_edit_route_to,
-        StateFilter(CargoEditStates.route_to),
+        process_edit_route_city_from,
+        StateFilter(CargoEditStates.route_city_from),
+    )
+    dp.message.register(
+        process_edit_route_region_to,
+        StateFilter(CargoEditStates.route_region_to),
+    )
+    dp.message.register(
+        process_edit_route_city_to,
+        StateFilter(CargoEditStates.route_city_to),
     )
     dp.message.register(
         process_edit_date_from,
@@ -762,4 +831,14 @@ def register_cargo_handlers(dp: Dispatcher):
     dp.message.register(
         process_edit_date_to,
         StateFilter(CargoEditStates.date_to),
+    )
+    dp.callback_query.register(
+        handle_calendar_callback,
+        StateFilter(CargoEditStates.date_from),
+        lambda c: c.data.startswith("cal:")
+    )
+    dp.callback_query.register(
+        handle_calendar_callback,
+        StateFilter(CargoEditStates.date_to),
+        lambda c: c.data.startswith("cal:")
     )
