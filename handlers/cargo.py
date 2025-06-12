@@ -10,7 +10,10 @@ from datetime import datetime
 from db import (
     get_connection,
     update_cargo_weight,
+    update_cargo_route,
+    update_cargo_dates,
     delete_cargo,
+    get_cargo,
 )
 from .common import (
     get_main_menu,
@@ -566,12 +569,52 @@ async def filter_date_to(message: types.Message, state: FSMContext):
 
 # ========== СЦЕНАРИЙ: РЕДАКТИРОВАНИЕ/УДАЛЕНИЕ ГРУЗА ==========
 
-async def handle_edit_cargo(callback: types.CallbackQuery, state: FSMContext):
-    """Start cargo weight editing by asking for a new value."""
+async def handle_edit_cargo(callback: types.CallbackQuery):
+    """Show edit options for selected cargo."""
+    cargo_id = int(callback.data.split(":")[1])
+    row = get_cargo(cargo_id)
+    if not row:
+        await callback.answer()
+        return
+    text = (
+        f"Груз ID {row['id']}\n"
+        f"{row['city_from']} → {row['city_to']}\n"
+        f"{format_date_for_display(row['date_from'])} - "
+        f"{format_date_for_display(row['date_to'])}\n"
+        f"Вес: {row['weight']} т"
+    )
+    kb = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [types.InlineKeyboardButton(text="Маршрут", callback_data=f"edit_cargo_route:{row['id']}")],
+            [types.InlineKeyboardButton(text="Даты", callback_data=f"edit_cargo_dates:{row['id']}")],
+            [types.InlineKeyboardButton(text="Вес", callback_data=f"edit_cargo_weight:{row['id']}")],
+        ]
+    )
+    await callback.message.answer(text, reply_markup=kb)
+    await callback.answer()
+
+
+async def start_edit_cargo_weight(callback: types.CallbackQuery, state: FSMContext):
     cargo_id = int(callback.data.split(":")[1])
     await state.update_data(edit_cargo_id=cargo_id)
     await callback.message.answer("Новый вес (тонны):")
     await state.set_state(CargoEditStates.weight)
+    await callback.answer()
+
+
+async def start_edit_cargo_route(callback: types.CallbackQuery, state: FSMContext):
+    cargo_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_cargo_id=cargo_id)
+    await callback.message.answer("Новый город отправления:")
+    await state.set_state(CargoEditStates.route_from)
+    await callback.answer()
+
+
+async def start_edit_cargo_dates(callback: types.CallbackQuery, state: FSMContext):
+    cargo_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_cargo_id=cargo_id)
+    await callback.message.answer("Новая дата отправления (ГГГГ-ММ-ДД):")
+    await state.set_state(CargoEditStates.date_from)
     await callback.answer()
 
 
@@ -587,6 +630,43 @@ async def process_edit_weight(message: types.Message, state: FSMContext):
         update_cargo_weight(cid, weight)
         clear_city_cache()
     await message.answer("Запись обновлена.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def process_edit_route_from(message: types.Message, state: FSMContext):
+    """Store new origin city and ask for destination."""
+    await state.update_data(new_city_from=message.text.strip())
+    await message.answer("Новый город назначения:")
+    await state.set_state(CargoEditStates.route_to)
+
+
+async def process_edit_route_to(message: types.Message, state: FSMContext):
+    """Update route in the database."""
+    data = await state.get_data()
+    cid = data.get("edit_cargo_id")
+    city_from = data.get("new_city_from")
+    if cid and city_from:
+        update_cargo_route(cid, city_from, message.text.strip())
+        clear_city_cache()
+    await message.answer("Маршрут обновлён.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def process_edit_date_from(message: types.Message, state: FSMContext):
+    """Store new start date and ask for end date."""
+    await state.update_data(new_date_from=message.text.strip())
+    await message.answer("Новая дата прибытия (ГГГГ-ММ-ДД):")
+    await state.set_state(CargoEditStates.date_to)
+
+
+async def process_edit_date_to(message: types.Message, state: FSMContext):
+    """Update cargo dates in the database."""
+    data = await state.get_data()
+    cid = data.get("edit_cargo_id")
+    df = data.get("new_date_from")
+    if cid and df:
+        update_cargo_dates(cid, df, message.text.strip())
+    await message.answer("Даты обновлены.", reply_markup=get_main_menu())
     await state.clear()
 
 
@@ -648,10 +728,38 @@ def register_cargo_handlers(dp: Dispatcher):
         lambda c: c.data.startswith("edit_cargo:"),
     )
     dp.callback_query.register(
+        start_edit_cargo_route,
+        lambda c: c.data.startswith("edit_cargo_route:"),
+    )
+    dp.callback_query.register(
+        start_edit_cargo_dates,
+        lambda c: c.data.startswith("edit_cargo_dates:"),
+    )
+    dp.callback_query.register(
+        start_edit_cargo_weight,
+        lambda c: c.data.startswith("edit_cargo_weight:"),
+    )
+    dp.callback_query.register(
         handle_delete_cargo,
         lambda c: c.data.startswith("del_cargo:"),
     )
     dp.message.register(
         process_edit_weight,
         StateFilter(CargoEditStates.weight),
+    )
+    dp.message.register(
+        process_edit_route_from,
+        StateFilter(CargoEditStates.route_from),
+    )
+    dp.message.register(
+        process_edit_route_to,
+        StateFilter(CargoEditStates.route_to),
+    )
+    dp.message.register(
+        process_edit_date_from,
+        StateFilter(CargoEditStates.date_from),
+    )
+    dp.message.register(
+        process_edit_date_to,
+        StateFilter(CargoEditStates.date_to),
     )

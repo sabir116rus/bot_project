@@ -11,7 +11,10 @@ from datetime import datetime
 from db import (
     get_connection,
     update_truck_weight,
+    update_truck_route,
+    update_truck_dates,
     delete_truck,
+    get_truck,
 )
 from .common import (
     get_main_menu,
@@ -471,12 +474,52 @@ async def filter_date_to_truck(message: types.Message, state: FSMContext):
 
 # ========== СЦЕНАРИЙ: РЕДАКТИРОВАНИЕ/УДАЛЕНИЕ ТС ==========
 
-async def handle_edit_truck(callback: types.CallbackQuery, state: FSMContext):
-    """Start truck weight editing."""
+async def handle_edit_truck(callback: types.CallbackQuery):
+    """Show edit options for selected truck."""
+    truck_id = int(callback.data.split(":")[1])
+    row = get_truck(truck_id)
+    if not row:
+        await callback.answer()
+        return
+    text = (
+        f"ТС ID {row['id']}\n"
+        f"{row['city']} ({row['region']})\n"
+        f"{format_date_for_display(row['date_from'])} - "
+        f"{format_date_for_display(row['date_to'])}\n"
+        f"Вес: {row['weight']} т"
+    )
+    kb = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [types.InlineKeyboardButton(text="Маршрут", callback_data=f"edit_truck_route:{row['id']}")],
+            [types.InlineKeyboardButton(text="Даты", callback_data=f"edit_truck_dates:{row['id']}")],
+            [types.InlineKeyboardButton(text="Вес", callback_data=f"edit_truck_weight:{row['id']}")],
+        ]
+    )
+    await callback.message.answer(text, reply_markup=kb)
+    await callback.answer()
+
+
+async def start_edit_truck_weight(callback: types.CallbackQuery, state: FSMContext):
     truck_id = int(callback.data.split(":")[1])
     await state.update_data(edit_truck_id=truck_id)
     await callback.message.answer("Новый вес (тонны):")
     await state.set_state(TruckEditStates.weight)
+    await callback.answer()
+
+
+async def start_edit_truck_route(callback: types.CallbackQuery, state: FSMContext):
+    truck_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_truck_id=truck_id)
+    await callback.message.answer("Новый маршрут:")
+    await state.set_state(TruckEditStates.route)
+    await callback.answer()
+
+
+async def start_edit_truck_dates(callback: types.CallbackQuery, state: FSMContext):
+    truck_id = int(callback.data.split(":")[1])
+    await state.update_data(edit_truck_id=truck_id)
+    await callback.message.answer("Новая дата отправления (ГГГГ-ММ-ДД):")
+    await state.set_state(TruckEditStates.date_from)
     await callback.answer()
 
 
@@ -492,6 +535,34 @@ async def process_edit_truck_weight(message: types.Message, state: FSMContext):
         update_truck_weight(tid, weight)
         clear_city_cache()
     await message.answer("Запись обновлена.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def process_edit_truck_route(message: types.Message, state: FSMContext):
+    """Update truck route."""
+    data = await state.get_data()
+    tid = data.get("edit_truck_id")
+    if tid:
+        update_truck_route(tid, message.text.strip())
+    await message.answer("Маршрут обновлён.", reply_markup=get_main_menu())
+    await state.clear()
+
+
+async def process_edit_truck_date_from(message: types.Message, state: FSMContext):
+    """Store new start date for truck."""
+    await state.update_data(new_date_from=message.text.strip())
+    await message.answer("Новая дата окончания (ГГГГ-ММ-ДД):")
+    await state.set_state(TruckEditStates.date_to)
+
+
+async def process_edit_truck_date_to(message: types.Message, state: FSMContext):
+    """Update truck dates."""
+    data = await state.get_data()
+    tid = data.get("edit_truck_id")
+    df = data.get("new_date_from")
+    if tid and df:
+        update_truck_dates(tid, df, message.text.strip())
+    await message.answer("Даты обновлены.", reply_markup=get_main_menu())
     await state.clear()
 
 
@@ -551,10 +622,34 @@ def register_truck_handlers(dp: Dispatcher):
         lambda c: c.data.startswith("edit_truck:"),
     )
     dp.callback_query.register(
+        start_edit_truck_route,
+        lambda c: c.data.startswith("edit_truck_route:"),
+    )
+    dp.callback_query.register(
+        start_edit_truck_dates,
+        lambda c: c.data.startswith("edit_truck_dates:"),
+    )
+    dp.callback_query.register(
+        start_edit_truck_weight,
+        lambda c: c.data.startswith("edit_truck_weight:"),
+    )
+    dp.callback_query.register(
         handle_delete_truck,
         lambda c: c.data.startswith("del_truck:"),
     )
     dp.message.register(
         process_edit_truck_weight,
         StateFilter(TruckEditStates.weight),
+    )
+    dp.message.register(
+        process_edit_truck_route,
+        StateFilter(TruckEditStates.route),
+    )
+    dp.message.register(
+        process_edit_truck_date_from,
+        StateFilter(TruckEditStates.date_from),
+    )
+    dp.message.register(
+        process_edit_truck_date_to,
+        StateFilter(TruckEditStates.date_to),
     )

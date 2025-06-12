@@ -198,8 +198,8 @@ def test_edit_and_delete_flows(monkeypatch):
     conn.close()
 
     state = DummyFSM()
-    cq = DummyCallbackQuery("edit_cargo:1")
-    asyncio.run(cargo.handle_edit_cargo(cq, state))
+    cq = DummyCallbackQuery("edit_cargo_weight:1")
+    asyncio.run(cargo.start_edit_cargo_weight(cq, state))
     assert state.state == cargo.CargoEditStates.weight
     msg = DummyMessage("55")
     asyncio.run(cargo.process_edit_weight(msg, state))
@@ -209,6 +209,41 @@ def test_edit_and_delete_flows(monkeypatch):
     assert new_w == 55
     assert state.state is None
 
+    state = DummyFSM()
+    cq = DummyCallbackQuery("edit_cargo_route:1")
+    asyncio.run(cargo.start_edit_cargo_route(cq, state))
+    assert state.state == cargo.CargoEditStates.route_from
+    asyncio.run(cargo.process_edit_route_from(DummyMessage("X"), state))
+    assert state.state == cargo.CargoEditStates.route_to
+    asyncio.run(cargo.process_edit_route_to(DummyMessage("Y"), state))
+    conn = sqlite3.connect(db_path)
+    r = conn.execute("SELECT city_from, city_to FROM cargo WHERE id=1").fetchone()
+    conn.close()
+    assert r == ("X", "Y")
+
+    state = DummyFSM()
+    cq = DummyCallbackQuery("edit_truck_route:1")
+    asyncio.run(truck.start_edit_truck_route(cq, state))
+    assert state.state == truck.TruckEditStates.route
+    asyncio.run(truck.process_edit_truck_route(DummyMessage("R"), state))
+    conn = sqlite3.connect(db_path)
+    route = conn.execute("SELECT route_regions FROM trucks WHERE id=1").fetchone()[0]
+    conn.close()
+    assert route == "R"
+
+    state = DummyFSM()
+    cq = DummyCallbackQuery("edit_truck_dates:1")
+    asyncio.run(truck.start_edit_truck_dates(cq, state))
+    assert state.state == truck.TruckEditStates.date_from
+    asyncio.run(truck.process_edit_truck_date_from(DummyMessage("2030-01-01"), state))
+    assert state.state == truck.TruckEditStates.date_to
+    asyncio.run(truck.process_edit_truck_date_to(DummyMessage("2030-01-02"), state))
+    conn = sqlite3.connect(db_path)
+    df, dt = conn.execute("SELECT date_from, date_to FROM trucks WHERE id=1").fetchone()
+    conn.close()
+    assert df == "2030-01-01" and dt == "2030-01-02"
+
+    state = DummyFSM()
     cq = DummyCallbackQuery("del_truck:1")
     asyncio.run(truck.handle_delete_truck(cq))
     conn = sqlite3.connect(db_path)

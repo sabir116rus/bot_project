@@ -90,6 +90,18 @@ def get_cargo_by_user(user_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def get_cargo(cargo_id: int) -> sqlite3.Row | None:
+    """Return cargo entry by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM cargo WHERE id = ?",
+            (cargo_id,),
+        )
+        row = cursor.fetchone()
+    return row
+
+
 def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
     """Return truck entries owned by ``user_id``."""
     with get_connection() as conn:
@@ -103,6 +115,15 @@ def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def get_truck(truck_id: int) -> sqlite3.Row | None:
+    """Return truck entry by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trucks WHERE id = ?", (truck_id,))
+        row = cursor.fetchone()
+    return row
+
+
 def update_cargo_weight(cargo_id: int, weight: int) -> None:
     """Update ``weight`` for cargo entry with given ``cargo_id``."""
     with get_connection() as conn:
@@ -110,6 +131,28 @@ def update_cargo_weight(cargo_id: int, weight: int) -> None:
         cursor.execute(
             "UPDATE cargo SET weight = ? WHERE id = ?",
             (weight, cargo_id),
+        )
+        conn.commit()
+
+
+def update_cargo_route(cargo_id: int, city_from: str, city_to: str) -> None:
+    """Update route cities for cargo entry ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET city_from = ?, city_to = ? WHERE id = ?",
+            (city_from, city_to, cargo_id),
+        )
+        conn.commit()
+
+
+def update_cargo_dates(cargo_id: int, date_from: str, date_to: str) -> None:
+    """Update dates for cargo entry ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET date_from = ?, date_to = ? WHERE id = ?",
+            (date_from, date_to, cargo_id),
         )
         conn.commit()
 
@@ -129,6 +172,28 @@ def update_truck_weight(truck_id: int, weight: int) -> None:
         cursor.execute(
             "UPDATE trucks SET weight = ? WHERE id = ?",
             (weight, truck_id),
+        )
+        conn.commit()
+
+
+def update_truck_route(truck_id: int, route_regions: str) -> None:
+    """Update route regions for truck entry ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET route_regions = ? WHERE id = ?",
+            (route_regions, truck_id),
+        )
+        conn.commit()
+
+
+def update_truck_dates(truck_id: int, date_from: str, date_to: str) -> None:
+    """Update dates for truck entry ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET date_from = ?, date_to = ? WHERE id = ?",
+            (date_from, date_to, truck_id),
         )
         conn.commit()
 

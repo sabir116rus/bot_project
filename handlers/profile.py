@@ -171,11 +171,11 @@ async def show_manage_cargo(callback: types.CallbackQuery):
     for r in cargo_rows:
         date_disp = format_date_for_display(r["date_from"])
         text += (
-            f"- {r['city_from']} → {r['city_to']}, {date_disp}, "
+            f"- ID {r['id']}: {r['city_from']} → {r['city_to']}, {date_disp}, "
             f"{r['weight']} т\n"
         )
         kb.append([
-            types.InlineKeyboardButton(text="✏️ Изменить", callback_data=f"edit_cargo:{r['id']}") ,
+            types.InlineKeyboardButton(text=f"Изменить ID {r['id']}", callback_data=f"edit_cargo:{r['id']}") ,
             types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_cargo:{r['id']}") ,
         ])
     markup = types.InlineKeyboardMarkup(inline_keyboard=kb) if kb else None
@@ -196,9 +196,9 @@ async def show_manage_truck(callback: types.CallbackQuery):
     kb: list[list[types.InlineKeyboardButton]] = []
     for r in truck_rows:
         date_disp = format_date_for_display(r["date_from"])
-        text += f"- {r['city']}, {date_disp}, {r['weight']} т\n"
+        text += f"- ID {r['id']}: {r['city']}, {date_disp}, {r['weight']} т\n"
         kb.append([
-            types.InlineKeyboardButton(text="✏️ Изменить", callback_data=f"edit_truck:{r['id']}") ,
+            types.InlineKeyboardButton(text=f"Изменить ID {r['id']}", callback_data=f"edit_truck:{r['id']}") ,
             types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_truck:{r['id']}") ,
         ])
     markup = types.InlineKeyboardMarkup(inline_keyboard=kb) if kb else None
