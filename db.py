@@ -90,6 +90,18 @@ def get_cargo_by_user(user_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def get_cargo(cargo_id: int) -> sqlite3.Row | None:
+    """Return cargo entry by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM cargo WHERE id = ?",
+            (cargo_id,),
+        )
+        row = cursor.fetchone()
+    return row
+
+
 def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
     """Return truck entries owned by ``user_id``."""
     with get_connection() as conn:
@@ -101,6 +113,138 @@ def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
         )
         rows = cursor.fetchall()
     return rows
+
+
+def get_truck(truck_id: int) -> sqlite3.Row | None:
+    """Return truck entry by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trucks WHERE id = ?", (truck_id,))
+        row = cursor.fetchone()
+    return row
+
+
+def update_cargo_weight(cargo_id: int, weight: int) -> None:
+    """Update ``weight`` for cargo entry with given ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET weight = ? WHERE id = ?",
+            (weight, cargo_id),
+        )
+        conn.commit()
+
+
+def update_cargo_route(
+    cargo_id: int,
+    city_from: str,
+    region_from: str,
+    city_to: str,
+    region_to: str,
+) -> None:
+    """Update route cities and regions for cargo entry ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET city_from = ?, region_from = ?,"
+            " city_to = ?, region_to = ? WHERE id = ?",
+            (city_from, region_from, city_to, region_to, cargo_id),
+        )
+        conn.commit()
+
+
+def update_cargo_dates(cargo_id: int, date_from: str, date_to: str) -> None:
+    """Update dates for cargo entry ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET date_from = ?, date_to = ? WHERE id = ?",
+            (date_from, date_to, cargo_id),
+        )
+        conn.commit()
+
+
+def delete_cargo(cargo_id: int) -> None:
+    """Remove cargo entry identified by ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cargo WHERE id = ?", (cargo_id,))
+        conn.commit()
+
+
+def update_truck_weight(truck_id: int, weight: int) -> None:
+    """Update ``weight`` for truck entry with given ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET weight = ? WHERE id = ?",
+            (weight, truck_id),
+        )
+        conn.commit()
+
+
+def update_truck_route(truck_id: int, city: str, region: str) -> None:
+    """Update location city and region for truck entry ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET city = ?, region = ? WHERE id = ?",
+            (city, region, truck_id),
+        )
+        conn.commit()
+
+
+def update_truck_dates(truck_id: int, date_from: str, date_to: str) -> None:
+    """Update dates for truck entry ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET date_from = ?, date_to = ? WHERE id = ?",
+            (date_from, date_to, truck_id),
+        )
+        conn.commit()
+
+
+def delete_truck(truck_id: int) -> None:
+    """Remove truck entry identified by ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM trucks WHERE id = ?", (truck_id,))
+        conn.commit()
+
+
+def update_user_name(user_id: int, name: str) -> None:
+    """Update ``name`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+        conn.commit()
+
+
+def update_user_city(user_id: int, city: str) -> None:
+    """Update ``city`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET city = ? WHERE id = ?", (city, user_id))
+        conn.commit()
+
+
+def update_user_phone(user_id: int, phone: str) -> None:
+    """Update ``phone`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET phone = ? WHERE id = ?", (phone, user_id))
+        conn.commit()
+
+
+def delete_user(user_id: int) -> None:
+    """Remove user and associated cargo and trucks."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cargo WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM trucks WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
 
 
 if __name__ == "__main__":

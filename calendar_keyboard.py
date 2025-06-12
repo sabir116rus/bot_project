@@ -6,7 +6,11 @@ from datetime import datetime
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 
-from db import get_connection
+from db import (
+    get_connection,
+    update_cargo_dates,
+    update_truck_dates,
+)
 from handlers.common import get_main_menu, show_search_results
 from utils import get_current_user_id, log_user_action
 
@@ -319,6 +323,48 @@ async def handle_calendar_callback(callback: types.CallbackQuery, state: FSMCont
             await show_search_results(callback.message, rows)
 
         log_user_action(user_id, "truck_search", f"results={len(rows)}")
+        await state.clear()
+        await callback.answer()
+        return
+
+    if current_state == "CargoEditStates:date_from":
+        await state.update_data(new_date_from=value, calendar_field="date_to")
+        bot = await callback.message.answer(
+            "Новая дата прибытия:", reply_markup=generate_calendar()
+        )
+        await state.update_data(last_bot_message_id=bot.message_id)
+        await state.set_state("CargoEditStates:date_to")
+        await callback.answer()
+        return
+
+    if current_state == "CargoEditStates:date_to":
+        data = await state.get_data()
+        cid = data.get("edit_cargo_id")
+        df = data.get("new_date_from")
+        if cid and df:
+            update_cargo_dates(cid, df, value)
+        await callback.message.answer("Даты обновлены.", reply_markup=get_main_menu())
+        await state.clear()
+        await callback.answer()
+        return
+
+    if current_state == "TruckEditStates:date_from":
+        await state.update_data(new_date_from=value, calendar_field="date_to")
+        bot = await callback.message.answer(
+            "Новая дата окончания:", reply_markup=generate_calendar()
+        )
+        await state.update_data(last_bot_message_id=bot.message_id)
+        await state.set_state("TruckEditStates:date_to")
+        await callback.answer()
+        return
+
+    if current_state == "TruckEditStates:date_to":
+        data = await state.get_data()
+        tid = data.get("edit_truck_id")
+        df = data.get("new_date_from")
+        if tid and df:
+            update_truck_dates(tid, df, value)
+        await callback.message.answer("Даты обновлены.", reply_markup=get_main_menu())
         await state.clear()
         await callback.answer()
         return
