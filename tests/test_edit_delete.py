@@ -134,6 +134,7 @@ class DummyMessage:
         self.reply = None
         self.markup = None
         self.chat = self
+        self.from_user = type("U", (), {"id": 1})()
 
     async def answer(self, text, reply_markup=None):
         self.reply = text
@@ -214,3 +215,32 @@ def test_edit_and_delete_flows(monkeypatch):
     count = conn.execute("SELECT COUNT(*) FROM trucks").fetchone()[0]
     conn.close()
     assert count == 0
+
+
+def test_edit_profile(monkeypatch):
+    db_path = setup_temp_db(monkeypatch)
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO users (telegram_id, name, city, phone, created_at) VALUES (1, 'u', 'c', 'p', '2020-01-01')"
+    )
+    conn.commit()
+    conn.close()
+
+    state = DummyFSM()
+    spec = importlib.util.spec_from_file_location(
+        "handlers.profile",
+        os.path.join(os.path.dirname(__file__), "..", "handlers", "profile.py"),
+    )
+    profile = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(profile)
+
+    cq = DummyCallbackQuery("edit_name")
+    asyncio.run(profile.start_edit_name(cq, state))
+    assert state.state == profile.UserEditStates.name
+    msg = DummyMessage("new")
+    asyncio.run(profile.process_new_name(msg, state))
+    conn = sqlite3.connect(db_path)
+    name = conn.execute("SELECT name FROM users WHERE telegram_id=1").fetchone()[0]
+    conn.close()
+    assert name == "new"

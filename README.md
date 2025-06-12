@@ -9,7 +9,7 @@ This Telegram bot allows users to register, add cargo and trucks, and search the
 - **Cargo management**: add new cargo entries and search existing ones.
 - **Truck management**: add a truck and search available trucks.
 - **Profile view** with "📋 Мой профиль" button that lists your cargo and trucks.
-- **Inline editing**: profile entries now include edit and delete buttons.
+- **Inline editing**: the profile shows buttons to edit your info, cargo and trucks.
 - **Weight validation** ensures values are between 1 and 1000 tons.
 - **Inline calendar** with month and year navigation for selecting dates when adding or searching cargo and trucks.
 - **Extensive region and city list** loaded from `russia.json`. When adding
@@ -57,7 +57,7 @@ The SQLite database file is stored at `bot_database.sqlite3` in the project root
 - `/admin` – open the admin panel (available for IDs listed in `ADMIN_IDS`).
 
 The bot also provides buttons to add/search cargo or trucks and to view your profile.
-Use the inline buttons in the profile to edit or delete entries.
+After opening the profile you can choose to edit your personal info, cargo or trucks.
 
 ## Running tests
 

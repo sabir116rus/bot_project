@@ -22,3 +22,11 @@ class TruckEditStates(BaseStates):
     """FSM states for truck editing workflow."""
 
     weight = State()
+
+
+class UserEditStates(BaseStates):
+    """FSM states for editing user profile details."""
+
+    name = State()
+    city = State()
+    phone = State()

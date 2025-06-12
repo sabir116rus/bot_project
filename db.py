@@ -141,6 +141,40 @@ def delete_truck(truck_id: int) -> None:
         conn.commit()
 
 
+def update_user_name(user_id: int, name: str) -> None:
+    """Update ``name`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+        conn.commit()
+
+
+def update_user_city(user_id: int, city: str) -> None:
+    """Update ``city`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET city = ? WHERE id = ?", (city, user_id))
+        conn.commit()
+
+
+def update_user_phone(user_id: int, phone: str) -> None:
+    """Update ``phone`` for user with ``user_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET phone = ? WHERE id = ?", (phone, user_id))
+        conn.commit()
+
+
+def delete_user(user_id: int) -> None:
+    """Remove user and associated cargo and trucks."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cargo WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM trucks WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+
+
 if __name__ == "__main__":
     init_db()
     print("База данных инициализирована в", DB_PATH)
