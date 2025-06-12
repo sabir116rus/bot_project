@@ -103,6 +103,44 @@ def get_trucks_by_user(user_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def update_cargo_weight(cargo_id: int, weight: int) -> None:
+    """Update ``weight`` for cargo entry with given ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cargo SET weight = ? WHERE id = ?",
+            (weight, cargo_id),
+        )
+        conn.commit()
+
+
+def delete_cargo(cargo_id: int) -> None:
+    """Remove cargo entry identified by ``cargo_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cargo WHERE id = ?", (cargo_id,))
+        conn.commit()
+
+
+def update_truck_weight(truck_id: int, weight: int) -> None:
+    """Update ``weight`` for truck entry with given ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trucks SET weight = ? WHERE id = ?",
+            (weight, truck_id),
+        )
+        conn.commit()
+
+
+def delete_truck(truck_id: int) -> None:
+    """Remove truck entry identified by ``truck_id``."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM trucks WHERE id = ?", (truck_id,))
+        conn.commit()
+
+
 if __name__ == "__main__":
     init_db()
     print("База данных инициализирована в", DB_PATH)

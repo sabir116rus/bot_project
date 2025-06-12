@@ -10,3 +10,15 @@ class BaseStates(StatesGroup):
     def get_all_states(cls) -> list[State]:
         """Return all attributes that are instances of :class:`State`."""
         return [value for value in cls.__dict__.values() if isinstance(value, State)]
+
+
+class CargoEditStates(BaseStates):
+    """FSM states for cargo editing workflow."""
+
+    weight = State()
+
+
+class TruckEditStates(BaseStates):
+    """FSM states for truck editing workflow."""
+
+    weight = State()
